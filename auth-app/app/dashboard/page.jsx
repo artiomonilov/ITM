@@ -3,6 +3,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from 'next/navigation';
 import LogoutButton from "@/app/components/LogoutButton";
 import Link from 'next/link';
+import CourseListClient from "@/app/components/CourseListClient";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -38,6 +39,7 @@ export default async function DashboardPage() {
       description: c.description,
       teacher: c.teacher ? { nume: c.teacher.nume, prenume: c.teacher.prenume } : null,
       studentsCount: c.students ? c.students.length : 0,
+      studentsList: c.students ? c.students.map(s => s._id.toString()) : [],
       createdAt: c.createdAt ? c.createdAt.toISOString() : null,
     }));
   } catch (error) {
@@ -73,29 +75,11 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        <div className="bg-gray-50 border border-gray-300 p-6 rounded mb-8 mt-6">
-          <h2 className="text-2xl font-bold mb-4 text-gray-800 border-b pb-2">📋 Lista de Cursuri</h2>
-          {coursesInit.length === 0 ? (
-             <p className="text-gray-500 italic">Momentan nu există niciun curs atribuit / creat.</p>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {coursesInit.map(c => (
-                 <div key={c._id} className="bg-white border rounded shadow p-4 text-sm relative">
-                    <h3 className="text-lg font-bold text-blue-600 truncate">{c.name}</h3>
-                    <p className="text-gray-600 my-2 line-clamp-2 h-10">{c.description}</p>
-                    
-                    <div className="mt-4 pt-4 border-t flex justify-between items-center text-xs text-gray-500 font-medium">
-                      <span>👤 Prof: {c.teacher ? c.teacher.nume + ' ' + c.teacher.prenume : 'N/A'}</span>
-                      <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">🎓 Studenți: {c.studentsCount}</span>
-                    </div>
-                    {session.user.role === 'Student' && c.studentsCount > 0 && c.students?.some(stu => stu._id.toString() === session.user.id) && (
-                      <div className="mt-2 text-xs font-bold text-green-600">✅ Ești înscris la acest curs</div>
-                    )}
-                 </div>
-              ))}
-            </div>
-          )}
-        </div>
+        <CourseListClient 
+           courses={coursesInit} 
+           currentUserRole={session.user.role} 
+           currentUserId={session.user.id} 
+        />
         
         <LogoutButton />
       </div>
