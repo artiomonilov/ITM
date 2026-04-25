@@ -30,10 +30,23 @@ export default function AdminResourcesPage() {
   const [sendingForwarded, setSendingForwarded] = useState(false);
   const router = useRouter();
 
+  async function parseResponse(res) {
+    const text = await res.text();
+    if (!text) {
+      return {};
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch {
+      return { message: `Raspuns invalid de la server (${res.status}).` };
+    }
+  }
+
   async function loadData() {
     setLoading(true);
     const res = await fetch('/api/admin/resources');
-    const payload = await res.json();
+    const payload = await parseResponse(res);
 
     if (res.ok) {
       setData(payload);
@@ -42,7 +55,7 @@ export default function AdminResourcesPage() {
         totalSubscriptions: payload.inventory?.totalSubscriptions || 0,
       });
     } else {
-      setMessage(payload.message || 'Nu am putut încărca resursele.');
+      setMessage(payload.message || 'Nu am putut incarca resursele.');
     }
 
     setLoading(false);
@@ -72,7 +85,7 @@ export default function AdminResourcesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'updateTotals', ...totals }),
     });
-    const payload = await res.json();
+    const payload = await parseResponse(res);
 
     if (res.ok) {
       setData(payload.data);
@@ -93,7 +106,7 @@ export default function AdminResourcesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ requestId, decision }),
     });
-    const payload = await res.json();
+    const payload = await parseResponse(res);
 
     if (res.ok) {
       setData(payload.data);
@@ -115,14 +128,14 @@ export default function AdminResourcesPage() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'forwardExtraRequest', ...forwarded }),
     });
-    const payload = await res.json();
+    const payload = await parseResponse(res);
 
     if (res.ok) {
       setData(payload.data);
       setForwarded(forwardedInitialState);
       setMessage(payload.message);
     } else {
-      setMessage(payload.message || 'Nu am putut înregistra cererea suplimentară.');
+      setMessage(payload.message || 'Nu am putut inregistra cererea suplimentara.');
     }
 
     setSendingForwarded(false);
@@ -131,19 +144,21 @@ export default function AdminResourcesPage() {
   const pendingRequests = data?.requests?.filter((item) => item.status === 'PENDING') || [];
   const approvedRequests = data?.requests?.filter((item) => item.status === 'APPROVED') || [];
   const selectedCourse = data?.courses?.find((course) => course._id === forwarded.courseId);
+  const availableTokens = Math.max(0, (data?.inventory?.totalTokens || 0) - (data?.usage?.TOKEN || 0));
+  const availableSubscriptions = Math.max(0, (data?.inventory?.totalSubscriptions || 0) - (data?.usage?.SUBSCRIPTION || 0));
 
   return (
     <div className="min-h-screen bg-gray-100 p-8 text-black">
       <div className="mx-auto max-w-7xl rounded bg-white p-8 shadow-md">
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Gestionează resurse</h1>
-            <p className="text-sm text-gray-600">Inventar central, distribuire către profesori și aprobări pentru cereri suplimentare.</p>
+            <h1 className="text-3xl font-bold">Gestioneaza resurse</h1>
+            <p className="text-sm text-gray-600">Inventar central, distribuire catre profesori si aprobari pentru cereri suplimentare.</p>
           </div>
           <div className="flex gap-3 text-sm font-semibold">
-            <Link href="/dashboard" className="text-blue-600 hover:underline">Înapoi la Dashboard</Link>
-            <Link href="/admin/activities" className="text-blue-600 hover:underline">Gestionează activități</Link>
-            <Link href="/admin/roles" className="text-blue-600 hover:underline">Gestionează utilizatori</Link>
+            <Link href="/dashboard" className="text-blue-600 hover:underline">Inapoi la Dashboard</Link>
+            <Link href="/admin/activities" className="text-blue-600 hover:underline">Gestioneaza activitati</Link>
+            <Link href="/admin/roles" className="text-blue-600 hover:underline">Gestioneaza utilizatori</Link>
           </div>
         </div>
 
@@ -154,7 +169,7 @@ export default function AdminResourcesPage() {
         )}
 
         {loading || !data ? (
-          <p className="text-gray-500">Se încarcă resursele administratorului...</p>
+          <p className="text-gray-500">Se incarca resursele administratorului...</p>
         ) : (
           <div className="grid gap-6">
             <div className="grid gap-4 md:grid-cols-4">
@@ -178,9 +193,9 @@ export default function AdminResourcesPage() {
 
             <div className="grid gap-6 xl:grid-cols-[1fr_1.3fr]">
               <form onSubmit={saveTotals} className="rounded border border-gray-200 bg-gray-50 p-5">
-                <h2 className="mb-4 text-xl font-bold">Inventarul universității</h2>
+                <h2 className="mb-4 text-xl font-bold">Inventarul universitatii</h2>
 
-                <label className="mb-2 block text-sm font-semibold">Număr total tokenuri</label>
+                <label className="mb-2 block text-sm font-semibold">Numar total tokenuri</label>
                 <input
                   type="number"
                   min="0"
@@ -190,7 +205,7 @@ export default function AdminResourcesPage() {
                   required
                 />
 
-                <label className="mb-2 block text-sm font-semibold">Număr total abonamente</label>
+                <label className="mb-2 block text-sm font-semibold">Numar total abonamente</label>
                 <input
                   type="number"
                   min="0"
@@ -205,15 +220,15 @@ export default function AdminResourcesPage() {
                   disabled={savingTotals}
                   className="w-full rounded bg-blue-600 px-4 py-3 font-bold text-white hover:bg-blue-700 disabled:opacity-50"
                 >
-                  {savingTotals ? 'Se salvează...' : 'Actualizează resursele totale'}
+                  {savingTotals ? 'Se salveaza...' : 'Actualizeaza resursele totale'}
                 </button>
               </form>
 
               <div className="rounded border border-gray-200 p-5">
-                <h2 className="mb-4 text-xl font-bold">Cursuri și necesarul declarat de profesori</h2>
+                <h2 className="mb-4 text-xl font-bold">Cursuri si necesarul declarat de profesori</h2>
                 <div className="grid gap-3">
                   {data.courses.length === 0 ? (
-                    <p className="text-sm text-gray-500">Nu există încă cursuri create.</p>
+                    <p className="text-sm text-gray-500">Nu exista inca cursuri create.</p>
                   ) : (
                     data.courses.map((course) => (
                       <div key={course._id} className="rounded border border-gray-200 bg-gray-50 p-4 text-sm">
@@ -227,7 +242,7 @@ export default function AdminResourcesPage() {
                           Profesor: {course.teacher?.nume} {course.teacher?.prenume} ({course.teacher?.email})
                         </p>
                         <p className="text-gray-600">
-                          Max studenți: {course.maxStudents || 0} | Necesitate totală: {course.resourceRequirements?.tokenTotalRequested || 0} tokenuri, {course.resourceRequirements?.subscriptionTotalRequested || 0} abonamente
+                          Max studenti: {course.maxStudents || 0} | Necesitate totala: {course.resourceRequirements?.tokenTotalRequested || 0} tokenuri, {course.resourceRequirements?.subscriptionTotalRequested || 0} abonamente
                         </p>
                       </div>
                     ))
@@ -241,53 +256,67 @@ export default function AdminResourcesPage() {
                 <div className="mb-4 flex items-center justify-between">
                   <h2 className="text-xl font-bold">Cereri de aprobare</h2>
                   <span className="rounded bg-yellow-100 px-3 py-1 text-sm font-bold text-yellow-800">
-                    În așteptare: {pendingRequests.length}
+                    In asteptare: {pendingRequests.length}
                   </span>
                 </div>
 
                 <div className="grid gap-3">
                   {pendingRequests.length === 0 ? (
-                    <p className="text-sm text-gray-500">Nu există cereri în așteptare.</p>
+                    <p className="text-sm text-gray-500">Nu exista cereri in asteptare.</p>
                   ) : (
-                    pendingRequests.map((request) => (
-                      <div key={request._id} className="rounded border border-gray-200 bg-gray-50 p-4 text-sm">
-                        <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                          <div>
-                            <h3 className="font-bold">{request.courseId?.name || 'Curs necunoscut'}</h3>
-                            <p className="text-gray-600">
-                              Profesor: {request.professorId?.nume} {request.professorId?.prenume}
-                            </p>
-                          </div>
-                          <span className="rounded bg-blue-100 px-2 py-1 text-xs font-bold text-blue-800">
-                            {request.type} | {request.scope}
-                          </span>
-                        </div>
-                        <p className="text-gray-700">Cantitate solicitată: <strong>{request.quantity}</strong></p>
-                        {request.studentId && (
-                          <p className="text-gray-700">
-                            Student: {request.studentId.nume} {request.studentId.prenume} ({request.studentId.email})
-                          </p>
-                        )}
-                        <p className="mb-3 text-gray-600">{request.reason || 'Fără motiv specificat.'}</p>
+                    pendingRequests.map((request) => {
+                      const availableForRequest = request.type === 'TOKEN' ? availableTokens : availableSubscriptions;
+                      const insufficientResources = request.quantity > availableForRequest;
 
-                        <div className="flex gap-3">
-                          <button
-                            onClick={() => resolveRequest(request._id, 'APPROVED')}
-                            disabled={processingId === request._id}
-                            className="rounded bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:opacity-50"
-                          >
-                            Aprobă
-                          </button>
-                          <button
-                            onClick={() => resolveRequest(request._id, 'REJECTED')}
-                            disabled={processingId === request._id}
-                            className="rounded bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700 disabled:opacity-50"
-                          >
-                            Respinge
-                          </button>
+                      return (
+                        <div key={request._id} className="rounded border border-gray-200 bg-gray-50 p-4 text-sm">
+                          <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                              <h3 className="font-bold">{request.courseId?.name || 'Curs necunoscut'}</h3>
+                              <p className="text-gray-600">
+                                Profesor: {request.professorId?.nume} {request.professorId?.prenume}
+                              </p>
+                            </div>
+                            <span className="rounded bg-blue-100 px-2 py-1 text-xs font-bold text-blue-800">
+                              {request.type} | {request.scope}
+                            </span>
+                          </div>
+                          <p className="text-gray-700">Cantitate solicitata: <strong>{request.quantity}</strong></p>
+                          <p className="text-gray-700">
+                            Disponibil acum: <strong>{availableForRequest}</strong> {request.type === 'TOKEN' ? 'tokenuri' : 'abonamente'}
+                          </p>
+                          {request.studentId && (
+                            <p className="text-gray-700">
+                              Student: {request.studentId.nume} {request.studentId.prenume} ({request.studentId.email})
+                            </p>
+                          )}
+                          <p className="mb-3 text-gray-600">{request.reason || 'Fara motiv specificat.'}</p>
+
+                          {insufficientResources && (
+                            <p className="mb-3 rounded border border-red-200 bg-red-50 px-3 py-2 font-semibold text-red-700">
+                              Cererea nu poate fi aprobata cu inventarul curent.
+                            </p>
+                          )}
+
+                          <div className="flex gap-3">
+                            <button
+                              onClick={() => resolveRequest(request._id, 'APPROVED')}
+                              disabled={processingId === request._id || insufficientResources}
+                              className="rounded bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:opacity-50"
+                            >
+                              Aproba
+                            </button>
+                            <button
+                              onClick={() => resolveRequest(request._id, 'REJECTED')}
+                              disabled={processingId === request._id}
+                              className="rounded bg-red-600 px-4 py-2 font-bold text-white hover:bg-red-700 disabled:opacity-50"
+                            >
+                              Respinge
+                            </button>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
@@ -295,7 +324,7 @@ export default function AdminResourcesPage() {
               <form onSubmit={submitForwarded} className="rounded border border-gray-200 bg-gray-50 p-5">
                 <h2 className="mb-4 text-xl font-bold">Flux aprobare extra-resurse</h2>
                 <p className="mb-4 text-sm text-gray-600">
-                  Înregistrează aici o cerere înaintată de profesor atunci când solicitarea studentului depășește suplimentarul de 10%.
+                  Inregistreaza aici o cerere inaintata de profesor atunci cand solicitarea studentului depaseste suplimentarul de 10%.
                 </p>
 
                 <label className="mb-2 block text-sm font-semibold">Curs</label>
@@ -303,28 +332,28 @@ export default function AdminResourcesPage() {
                   className="mb-4 w-full rounded border border-gray-300 p-2"
                   value={forwarded.courseId}
                   onChange={(event) => {
-                    const selectedCourse = data.courses.find((course) => course._id === event.target.value);
+                    const chosenCourse = data.courses.find((course) => course._id === event.target.value);
                     setForwarded((current) => ({
                       ...current,
                       courseId: event.target.value,
-                      professorId: selectedCourse?.teacher?._id || '',
+                      professorId: chosenCourse?.teacher?._id || '',
                     }));
                   }}
                   required
                 >
-                  <option value="">Selectează cursul</option>
+                  <option value="">Selecteaza cursul</option>
                   {data.courses.map((course) => (
                     <option key={course._id} value={course._id}>{course.name}</option>
                   ))}
                 </select>
 
-                <label className="mb-2 block text-sm font-semibold">Student (opțional)</label>
+                <label className="mb-2 block text-sm font-semibold">Student (optional)</label>
                 <select
                   className="mb-4 w-full rounded border border-gray-300 p-2"
                   value={forwarded.studentId}
                   onChange={(event) => setForwarded((current) => ({ ...current, studentId: event.target.value }))}
                 >
-                  <option value="">Fără student specific</option>
+                  <option value="">Fara student specific</option>
                   {(selectedCourse?.students || []).map((student) => (
                     <option key={student._id} value={student._id}>
                       {student.nume} {student.prenume} ({student.email})
@@ -332,7 +361,7 @@ export default function AdminResourcesPage() {
                   ))}
                 </select>
 
-                <label className="mb-2 block text-sm font-semibold">Tip resursă</label>
+                <label className="mb-2 block text-sm font-semibold">Tip resursa</label>
                 <select
                   className="mb-4 w-full rounded border border-gray-300 p-2"
                   value={forwarded.type}
@@ -358,7 +387,7 @@ export default function AdminResourcesPage() {
                   rows={4}
                   value={forwarded.reason}
                   onChange={(event) => setForwarded((current) => ({ ...current, reason: event.target.value }))}
-                  placeholder="Ex: studentul depășește suplimentarul profesorului de 10%."
+                  placeholder="Ex: studentul depaseste suplimentarul profesorului de 10%."
                 />
 
                 <button
@@ -381,7 +410,7 @@ export default function AdminResourcesPage() {
 
               <div className="grid gap-3">
                 {approvedRequests.length === 0 ? (
-                  <p className="text-sm text-gray-500">Nu există încă aprobări finalizate.</p>
+                  <p className="text-sm text-gray-500">Nu exista inca aprobari finalizate.</p>
                 ) : (
                   approvedRequests.map((request) => (
                     <div key={request._id} className="rounded border border-gray-200 bg-gray-50 p-4 text-sm">

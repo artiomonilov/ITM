@@ -76,152 +76,186 @@ async function buildResponse() {
 }
 
 export async function GET() {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
-  }
+  try {
+    const session = await requireAdmin();
+    if (!session) {
+      return NextResponse.json({ message: 'Restrictionat: doar administratorii au acces.' }, { status: 403 });
+    }
 
-  await connectDB();
-  return NextResponse.json(await buildResponse());
+    await connectDB();
+    return NextResponse.json(await buildResponse());
+  } catch (error) {
+    console.error('Eroare GET admin resources:', error);
+    return NextResponse.json({ message: error?.message || 'Eroare interna la incarcare.' }, { status: 500 });
+  }
 }
 
 export async function POST(req) {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
-  }
-
-  await connectDB();
-  const payload = await req.json();
-
-  if (payload.action === 'updateTotals') {
-    const inventory = await getOrCreateInventory();
-    inventory.totalTokens = Math.max(0, Number(payload.totalTokens) || 0);
-    inventory.totalSubscriptions = Math.max(0, Number(payload.totalSubscriptions) || 0);
-    await inventory.save();
-
-    return NextResponse.json({
-      message: 'Inventarul universității a fost actualizat.',
-      data: await buildResponse(),
-    });
-  }
-
-  if (payload.action === 'forwardExtraRequest') {
-    const { courseId, professorId, studentId, type, quantity, reason } = payload;
-    if (!courseId || !professorId || !type || !quantity) {
-      return NextResponse.json({ message: 'Date insuficiente pentru cererea suplimentară.' }, { status: 400 });
+  try {
+    const session = await requireAdmin();
+    if (!session) {
+      return NextResponse.json({ message: 'Restrictionat: doar administratorii au acces.' }, { status: 403 });
     }
 
-    const request = await ResourceRequest.create({
-      courseId,
-      professorId,
-      studentId: studentId || null,
-      type,
-      quantity: Number(quantity),
-      scope: 'EXTRA_STUDENT',
-      reason: reason || 'Cerere suplimentară înaintată de profesor către administrator.',
-    });
+    await connectDB();
+    const payload = await req.json();
 
-    return NextResponse.json({
-      message: 'Cererea suplimentară a fost înregistrată.',
-      request,
-      data: await buildResponse(),
-    }, { status: 201 });
+    if (payload.action === 'updateTotals') {
+      const inventory = await getOrCreateInventory();
+      inventory.totalTokens = Math.max(0, Number(payload.totalTokens) || 0);
+      inventory.totalSubscriptions = Math.max(0, Number(payload.totalSubscriptions) || 0);
+      await inventory.save();
+
+      return NextResponse.json({
+        message: 'Inventarul universitatii a fost actualizat.',
+        data: await buildResponse(),
+      });
+    }
+
+    if (payload.action === 'forwardExtraRequest') {
+      const { courseId, professorId, studentId, type, quantity, reason } = payload;
+      if (!courseId || !professorId || !type || !quantity) {
+        return NextResponse.json({ message: 'Date insuficiente pentru cererea suplimentara.' }, { status: 400 });
+      }
+
+      const request = await ResourceRequest.create({
+        courseId,
+        professorId,
+        studentId: studentId || null,
+        type,
+        quantity: Number(quantity),
+        scope: 'EXTRA_STUDENT',
+        reason: reason || 'Cerere suplimentara inaintata de profesor catre administrator.',
+      });
+
+      return NextResponse.json({
+        message: 'Cererea suplimentara a fost inregistrata.',
+        request,
+        data: await buildResponse(),
+      }, { status: 201 });
+    }
+
+    return NextResponse.json({ message: 'Actiune necunoscuta.' }, { status: 400 });
+  } catch (error) {
+    console.error('Eroare POST admin resources:', error);
+    return NextResponse.json({ message: error?.message || 'Eroare interna la salvare.' }, { status: 500 });
   }
-
-  return NextResponse.json({ message: 'Acțiune necunoscută.' }, { status: 400 });
 }
 
 export async function PUT(req) {
-  const session = await requireAdmin();
-  if (!session) {
-    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
-  }
-
-  await connectDB();
-  const { requestId, decision } = await req.json();
-  const request = await ResourceRequest.findById(requestId)
-    .populate('professorId', 'nume prenume email')
-    .populate('courseId', 'name');
-
-  if (!request) {
-    return NextResponse.json({ message: 'Cererea nu a fost găsită.' }, { status: 404 });
-  }
-
-  if (request.status !== 'PENDING') {
-    return NextResponse.json({ message: 'Cererea a fost deja procesată.' }, { status: 400 });
-  }
-
-  if (decision === 'REJECTED') {
-    request.status = 'REJECTED';
-    request.rejectedAt = new Date();
-    await request.save();
-
-    return NextResponse.json({
-      message: 'Cererea a fost respinsă.',
-      data: await buildResponse(),
-    });
-  }
-
-  if (decision !== 'APPROVED') {
-    return NextResponse.json({ message: 'Decizie invalidă.' }, { status: 400 });
-  }
-
-  const inventory = await getOrCreateInventory();
-  const usage = await calculateUsage();
-
-  if (request.type === 'TOKEN') {
-    const remainingTokens = inventory.totalTokens - usage.TOKEN;
-    if (remainingTokens < request.quantity) {
-      return NextResponse.json({ message: 'Nu există suficiente tokenuri disponibile pentru aprobare.' }, { status: 400 });
+  try {
+    const session = await requireAdmin();
+    if (!session) {
+      return NextResponse.json({ message: 'Restrictionat: doar administratorii au acces.' }, { status: 403 });
     }
 
-    await Resource.create({
-      profId: request.professorId._id,
-      courseId: request.courseId._id,
-      type: 'TOKEN',
-      quantity: request.quantity,
-      allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
-    });
-  }
+    await connectDB();
+    const { requestId, decision } = await req.json();
 
-  if (request.type === 'SUBSCRIPTION') {
-    const remainingSubscriptions = inventory.totalSubscriptions - usage.SUBSCRIPTION;
-    if (remainingSubscriptions < request.quantity) {
-      return NextResponse.json({ message: 'Nu există suficiente abonamente disponibile pentru aprobare.' }, { status: 400 });
+    const request = await ResourceRequest.findById(requestId)
+      .populate('professorId', 'nume prenume email')
+      .populate('courseId', 'name');
+
+    if (!request) {
+      return NextResponse.json({ message: 'Cererea nu a fost gasita.' }, { status: 404 });
     }
 
-    const credentials = [];
-    for (let index = 0; index < request.quantity; index += 1) {
-      const credential = await createSubscriptionCredentialSet(
-        `${request.courseId.name.toLowerCase().replace(/\s+/g, '-')}-${index + 1}`,
-      );
-      credentials.push(credential);
+    if (request.status !== 'PENDING') {
+      return NextResponse.json({ message: 'Cererea a fost deja procesata.' }, { status: 400 });
+    }
+
+    if (decision === 'REJECTED') {
+      request.status = 'REJECTED';
+      request.rejectedAt = new Date();
+      await request.save();
+
+      return NextResponse.json({
+        message: 'Cererea a fost respinsa.',
+        data: await buildResponse(),
+      });
+    }
+
+    if (decision !== 'APPROVED') {
+      return NextResponse.json({ message: 'Decizie invalida.' }, { status: 400 });
+    }
+
+    const inventory = await getOrCreateInventory();
+    const usage = await calculateUsage();
+
+    if (request.type === 'TOKEN') {
+      const remainingTokens = inventory.totalTokens - usage.TOKEN;
+      if (remainingTokens < request.quantity) {
+        return NextResponse.json({ message: 'Nu exista suficiente tokenuri disponibile pentru aprobare.' }, { status: 400 });
+      }
 
       await Resource.create({
         profId: request.professorId._id,
         courseId: request.courseId._id,
-        type: 'SUBSCRIPTION',
-        quantity: 1,
+        type: 'TOKEN',
+        quantity: request.quantity,
         allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
-        credentials: credential,
       });
     }
 
-    await sendSubscriptionCredentialsEmail(
-      request.professorId.email,
-      `${request.professorId.nume} ${request.professorId.prenume}`,
-      request.courseId.name,
-      credentials,
+    if (request.type === 'SUBSCRIPTION') {
+      const remainingSubscriptions = inventory.totalSubscriptions - usage.SUBSCRIPTION;
+      if (remainingSubscriptions < request.quantity) {
+        return NextResponse.json({ message: 'Nu exista suficiente abonamente disponibile pentru aprobare.' }, { status: 400 });
+      }
+
+      const credentials = [];
+      let usedFallbackCredentials = false;
+      for (let index = 0; index < request.quantity; index += 1) {
+        const credential = await createSubscriptionCredentialSet(
+          `${request.courseId.name.toLowerCase().replace(/\s+/g, '-')}-${index + 1}`,
+        );
+        credentials.push(credential);
+        if (credential.provisionedBy === 'fallback') {
+          usedFallbackCredentials = true;
+        }
+
+        await Resource.create({
+          profId: request.professorId._id,
+          courseId: request.courseId._id,
+          type: 'SUBSCRIPTION',
+          quantity: 1,
+          allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
+          credentials: credential,
+        });
+      }
+
+      await sendSubscriptionCredentialsEmail(
+        request.professorId.email,
+        `${request.professorId.nume} ${request.professorId.prenume}`,
+        request.courseId.name,
+        credentials,
+      );
+
+      request.status = 'APPROVED';
+      request.approvedAt = new Date();
+      await request.save();
+
+      return NextResponse.json({
+        message: usedFallbackCredentials
+          ? 'Cererea a fost aprobata. resourceService nu este configurat sau nu a raspuns, asa ca au fost generate credentiale locale temporare.'
+          : 'Cererea a fost aprobata.',
+        data: await buildResponse(),
+      });
+    }
+
+    request.status = 'APPROVED';
+    request.approvedAt = new Date();
+    await request.save();
+
+    return NextResponse.json({
+      message: 'Cererea a fost aprobata.',
+      data: await buildResponse(),
+    });
+  } catch (error) {
+    console.error('Eroare procesare cerere resurse:', error);
+    return NextResponse.json(
+      { message: error?.message || 'Eroare interna la procesarea cererii.' },
+      { status: 500 }
     );
   }
-
-  request.status = 'APPROVED';
-  request.approvedAt = new Date();
-  await request.save();
-
-  return NextResponse.json({
-    message: 'Cererea a fost aprobată.',
-    data: await buildResponse(),
-  });
 }
