@@ -11,6 +11,8 @@ Serviciu HTTPS simplu pentru simularea resurselor `AI` si `VPS`, construit fara 
   - `AI` + `resourceType=text|code|image`
   - `VPS` + returnarea unui IP disponibil din pool-ul local
 
+Resursele AI sunt citite din fisierele locale `resourceService/res/test.txt`, `resourceService/res/test.c` si `resourceService/res/test.png`.
+
 ## Rulare
 
 ```bash

@@ -41,6 +41,10 @@ function loadAiImage() {
   };
 }
 
+function loadUtf8Resource(relativePath) {
+  return fs.readFileSync(new URL(relativePath, import.meta.url), 'utf8');
+}
+
 export const config = {
   host: process.env.HOST || '0.0.0.0',
   port: Number(process.env.PORT || 3000),
@@ -49,14 +53,8 @@ export const config = {
   tlsKeyPath: process.env.TLS_KEY_PATH || new URL('../certs/localhost-key.pem', import.meta.url),
   tlsCertPath: process.env.TLS_CERT_PATH || new URL('../certs/localhost-cert.pem', import.meta.url),
   aiResources: {
-    text: 'AI resource response: platforma universitatii poate livra rezumate si explicatii pentru studenti.',
-    code: [
-      'function allocateTokens(total, used) {',
-      '  return Math.max(total - used, 0);',
-      '}',
-      '',
-      "console.log(allocateTokens(1500, 325));"
-    ].join('\n'),
+    text: loadUtf8Resource('../res/test.txt'),
+    code: loadUtf8Resource('../res/test.c'),
     image: loadAiImage()
   },
   vpsPool: [
