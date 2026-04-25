@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { redirect } from 'next/navigation';
+import LogoutButton from "@/app/components/LogoutButton";
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
@@ -30,6 +31,8 @@ export default async function DashboardPage() {
             <p>Nu aveți drepturi de "Admin" pe acest cont. Zona de administrare este ascunsă.</p>
           </div>
         )}
+        
+        <LogoutButton />
       </div>
     </div>
   );

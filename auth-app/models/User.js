@@ -10,7 +10,9 @@ const UserSchema = new mongoose.Schema({
     enum: ['Student', 'Profesor', 'Admin', 'Audit'], 
     default: 'Student' 
   },
-  isActive: { type: Boolean, default: true }, // Cont activ și capabil de logare
+  isActive: { type: Boolean, default: false }, // Trebuie activat prin email
+  activationToken: String,
+  activationTokenExpiry: Date,
   resetToken: String,
   resetTokenExpiry: Date,
 }, { timestamps: true });

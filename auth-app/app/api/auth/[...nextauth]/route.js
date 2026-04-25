@@ -18,12 +18,16 @@ export const authOptions = {
         await connectDB();
         const user = await User.findOne({ email: credentials.email });
 
-        if (!user) return null;
+        if (!user) throw new Error("Email sau parolă greșită.");
 
         const isMatch = await bcrypt.compare(credentials.password, user.password);
-        if (!isMatch) return null;
+        if (!isMatch) throw new Error("Email sau parolă greșită.");
 
-        return { id: user._id.toString(), email: user.email, role: user.role };
+        if (!user.isActive) {
+          throw new Error("Contul tău nu este activat. Verifică e-mail-ul pentru activare.");
+        }
+
+        return { id: user._id.toString(), email: user.email, role: user.role, nume: user.nume, prenume: user.prenume };
       }
     })
   ],
@@ -32,6 +36,8 @@ export const authOptions = {
       if (user) {
         token.role = user.role;
         token.id = user.id;
+        token.nume = user.nume;
+        token.prenume = user.prenume;
       }
       if (trigger === "update" && session?.role) {
         token.role = session.role;
@@ -41,6 +47,8 @@ export const authOptions = {
     async session({ session, token }) {
       session.user.id = token.id;
       session.user.role = token.role;
+      session.user.nume = token.nume;
+      session.user.prenume = token.prenume;
       return session;
     }
   },
