@@ -9,6 +9,7 @@ import ResourceRequest from '@/models/ResourceRequest';
 import User from '@/models/User';
 import { createSubscriptionCredentialSet } from '@/lib/resourceService';
 import { sendSubscriptionCredentialsEmail } from '@/lib/mailer';
+import { logAuditEvent } from '@/lib/audit';
 
 async function requireAdmin() {
   const session = await getServerSession(authOptions);
@@ -106,6 +107,20 @@ export async function POST(req) {
       inventory.totalSubscriptions = Math.max(0, Number(payload.totalSubscriptions) || 0);
       await inventory.save();
 
+      await logAuditEvent({
+        actorId: session.user.id,
+        actorEmail: session.user.email,
+        actorRole: session.user.role,
+        action: 'ADMIN_UPDATE_RESOURCE_TOTALS',
+        targetType: 'ResourceInventory',
+        details: 'Administratorul a actualizat totalul resurselor universitatii.',
+        status: 'SUCCESS',
+        metadata: {
+          totalTokens: inventory.totalTokens,
+          totalSubscriptions: inventory.totalSubscriptions,
+        },
+      });
+
       return NextResponse.json({
         message: 'Inventarul universitatii a fost actualizat.',
         data: await buildResponse(),
@@ -126,6 +141,18 @@ export async function POST(req) {
         quantity: Number(quantity),
         scope: 'EXTRA_STUDENT',
         reason: reason || 'Cerere suplimentara inaintata de profesor catre administrator.',
+      });
+
+      await logAuditEvent({
+        actorId: session.user.id,
+        actorEmail: session.user.email,
+        actorRole: session.user.role,
+        action: 'ADMIN_FORWARD_EXTRA_REQUEST',
+        targetType: 'ResourceRequest',
+        targetId: request._id.toString(),
+        targetLabel: type,
+        details: 'A fost inregistrata o cerere suplimentara pentru aprobare.',
+        status: 'SUCCESS',
       });
 
       return NextResponse.json({
@@ -168,6 +195,18 @@ export async function PUT(req) {
       request.status = 'REJECTED';
       request.rejectedAt = new Date();
       await request.save();
+
+      await logAuditEvent({
+        actorId: session.user.id,
+        actorEmail: session.user.email,
+        actorRole: session.user.role,
+        action: 'ADMIN_REJECT_RESOURCE_REQUEST',
+        targetType: 'ResourceRequest',
+        targetId: request._id.toString(),
+        targetLabel: request.type,
+        details: `Cerere respinsa pentru cursul ${request.courseId.name}.`,
+        status: 'SUCCESS',
+      });
 
       return NextResponse.json({
         message: 'Cererea a fost respinsa.',
@@ -235,6 +274,19 @@ export async function PUT(req) {
       request.approvedAt = new Date();
       await request.save();
 
+      await logAuditEvent({
+        actorId: session.user.id,
+        actorEmail: session.user.email,
+        actorRole: session.user.role,
+        action: 'ADMIN_APPROVE_RESOURCE_REQUEST',
+        targetType: 'ResourceRequest',
+        targetId: request._id.toString(),
+        targetLabel: request.type,
+        details: `Cerere aprobata pentru cursul ${request.courseId.name}.`,
+        status: 'SUCCESS',
+        metadata: { quantity: request.quantity },
+      });
+
       return NextResponse.json({
         message: usedFallbackCredentials
           ? 'Cererea a fost aprobata. resourceService nu este configurat sau nu a raspuns, asa ca au fost generate credentiale locale temporare.'
@@ -246,6 +298,19 @@ export async function PUT(req) {
     request.status = 'APPROVED';
     request.approvedAt = new Date();
     await request.save();
+
+    await logAuditEvent({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      actorRole: session.user.role,
+      action: 'ADMIN_APPROVE_RESOURCE_REQUEST',
+      targetType: 'ResourceRequest',
+      targetId: request._id.toString(),
+      targetLabel: request.type,
+      details: `Cerere aprobata pentru cursul ${request.courseId.name}.`,
+      status: 'SUCCESS',
+      metadata: { quantity: request.quantity },
+    });
 
     return NextResponse.json({
       message: 'Cererea a fost aprobata.',

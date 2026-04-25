@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb';
 import User from '@/models/User';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { logAuditEvent } from '@/lib/audit';
 
 export async function PUT(req) {
   try {
@@ -40,6 +41,18 @@ export async function PUT(req) {
     }
 
     await user.save();
+    await logAuditEvent({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      actorRole: session.user.role,
+      action: `ADMIN_${action.toUpperCase()}`,
+      targetType: 'User',
+      targetId: user._id.toString(),
+      targetLabel: user.email,
+      details: `Administratorul a executat actiunea ${action}.`,
+      status: 'SUCCESS',
+      metadata: { newRole, toggleStatus, newNume, newPrenume },
+    });
     return NextResponse.json({ message: `Acțiune reușită pentru ${user.email}!` }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ message: "A apărut o eroare interna." }, { status: 500 });

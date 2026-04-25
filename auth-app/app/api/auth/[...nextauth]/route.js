@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
+import { logAuditEvent } from "@/lib/audit";
 
 export const authOptions = {
   providers: [
@@ -18,14 +19,60 @@ export const authOptions = {
         await connectDB();
         const user = await User.findOne({ email: credentials.email });
 
-        if (!user) throw new Error("Email sau parolă greșită.");
+        if (!user) {
+          await logAuditEvent({
+            actorEmail: credentials.email,
+            action: 'LOGIN_ATTEMPT',
+            targetType: 'User',
+            targetLabel: credentials.email,
+            details: 'Autentificare esuata: utilizator inexistent.',
+            status: 'FAILURE',
+          });
+          throw new Error("Email sau parolă greșită.");
+        }
 
         const isMatch = await bcrypt.compare(credentials.password, user.password);
-        if (!isMatch) throw new Error("Email sau parolă greșită.");
+        if (!isMatch) {
+          await logAuditEvent({
+            actorId: user._id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: 'LOGIN_ATTEMPT',
+            targetType: 'User',
+            targetId: user._id.toString(),
+            targetLabel: user.email,
+            details: 'Autentificare esuata: parola incorecta.',
+            status: 'FAILURE',
+          });
+          throw new Error("Email sau parolă greșită.");
+        }
 
         if (!user.isActive) {
+          await logAuditEvent({
+            actorId: user._id,
+            actorEmail: user.email,
+            actorRole: user.role,
+            action: 'LOGIN_ATTEMPT',
+            targetType: 'User',
+            targetId: user._id.toString(),
+            targetLabel: user.email,
+            details: 'Autentificare blocata: cont inactiv.',
+            status: 'FAILURE',
+          });
           throw new Error("Contul tău nu este activat. Verifică e-mail-ul pentru activare.");
         }
+
+        await logAuditEvent({
+          actorId: user._id,
+          actorEmail: user.email,
+          actorRole: user.role,
+          action: 'LOGIN_SUCCESS',
+          targetType: 'User',
+          targetId: user._id.toString(),
+          targetLabel: user.email,
+          details: 'Autentificare reusita.',
+          status: 'SUCCESS',
+        });
 
         return { id: user._id.toString(), email: user.email, role: user.role, nume: user.nume, prenume: user.prenume };
       }

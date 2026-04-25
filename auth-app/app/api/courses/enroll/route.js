@@ -3,6 +3,7 @@ import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { logAuditEvent } from '@/lib/audit';
 
 export async function POST(req) {
   try {
@@ -37,6 +38,18 @@ export async function POST(req) {
     // Adăugăm studentul
     course.students.push(session.user.id);
     await course.save();
+
+    await logAuditEvent({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      actorRole: session.user.role,
+      action: 'ENROLL_COURSE',
+      targetType: 'Course',
+      targetId: course._id.toString(),
+      targetLabel: course.name,
+      details: 'Studentul s-a inrolat la curs.',
+      status: 'SUCCESS',
+    });
 
     return NextResponse.json({ message: "Te-ai înrolat cu succes!" }, { status: 200 });
   } catch (error) {

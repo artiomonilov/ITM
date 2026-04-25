@@ -6,6 +6,7 @@ import User from '@/models/User';
 import { sendCourseAssignmentEmail } from '@/lib/mailer';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { logAuditEvent } from '@/lib/audit';
 
 export async function POST(req) {
   try {
@@ -84,6 +85,23 @@ export async function POST(req) {
          sendCourseAssignmentEmail(student.email, name, teacherName);
       }
     }
+
+    await logAuditEvent({
+      actorId: session.user.id,
+      actorEmail: session.user.email,
+      actorRole: session.user.role,
+      action: 'CREATE_COURSE',
+      targetType: 'Course',
+      targetId: newCourse._id.toString(),
+      targetLabel: newCourse.name,
+      details: 'Curs creat cu cereri initiale de resurse.',
+      status: 'SUCCESS',
+      metadata: {
+        maxStudents: maxStudentsValue,
+        tokenTotalRequested,
+        subscriptionTotalRequested,
+      },
+    });
 
     return NextResponse.json({ message: "Curs creat cu succes!" }, { status: 201 });
   } catch (error) {

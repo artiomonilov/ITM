@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectDB } from '@/lib/mongodb';
 import Activity from '@/models/Activity';
+import { logAuditEvent } from '@/lib/audit';
 
 const defaultActivities = [
   { title: 'Rezumat text', description: 'Genereaza un rezumat pentru un text lung.', taskPrompt: 'Introdu textul care trebuie rezumat.', tokenCost: 10 },
@@ -70,6 +71,18 @@ export async function POST(req) {
     description,
     taskPrompt,
     tokenCost: Number(tokenCost) || 0,
+  });
+
+  await logAuditEvent({
+    actorId: session.user.id,
+    actorEmail: session.user.email,
+    actorRole: session.user.role,
+    action: 'ADMIN_CREATE_ACTIVITY',
+    targetType: 'Activity',
+    targetId: activity._id.toString(),
+    targetLabel: activity.title,
+    details: 'Administratorul a adaugat o activitate noua.',
+    status: 'SUCCESS',
   });
 
   return NextResponse.json({ message: 'Activitatea a fost adăugată cu succes.', activity }, { status: 201 });

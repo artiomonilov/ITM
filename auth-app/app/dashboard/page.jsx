@@ -26,6 +26,8 @@ export default async function DashboardPage() {
     let filter = {};
     if (session.user.role === 'Profesor') {
       filter = { teacher: session.user.id }; // Profesorii le văd doar pe ale lor, sau poți lăsa gol ca să le vadă pe toate
+    } else if (session.user.role === 'Audit') {
+      filter = { _id: null };
     }
 
     const coursesList = await Course.find(filter)
@@ -70,19 +72,28 @@ export default async function DashboardPage() {
             <Link href="/courses/create" className="text-blue-600 hover:underline font-bold bg-blue-100 px-3 py-2 rounded inline-block">➕ Creează Curs Nou</Link>
           </div>
         )}
+
+        {session.user.role === 'Audit' && (
+          <div className="bg-slate-100 p-4 rounded mb-4 border border-slate-300">
+            <h2 className="text-xl font-bold mb-2">Secțiune Audit</h2>
+            <Link href="/audit/logs" className="text-blue-600 hover:underline font-bold block">» Vizualizează jurnalul aplicației</Link>
+          </div>
+        )}
         
-        {session.user.role !== 'Admin' && session.user.role !== 'Profesor' && session.user.role !== 'Student' && (
+        {session.user.role !== 'Admin' && session.user.role !== 'Profesor' && session.user.role !== 'Student' && session.user.role !== 'Audit' && (
           <div className="bg-gray-200 p-4 rounded mb-4 text-black">
             <h2 className="text-xl font-bold">Informație</h2>
             <p>Zona ta de activitate nu deține acțiuni speciale.</p>
           </div>
         )}
 
-        <CourseListClient 
-           courses={coursesInit} 
-           currentUserRole={session.user.role} 
-           currentUserId={session.user.id} 
-        />
+        {session.user.role !== 'Audit' && (
+          <CourseListClient 
+             courses={coursesInit} 
+             currentUserRole={session.user.role} 
+             currentUserId={session.user.id} 
+          />
+        )}
         
         <LogoutButton />
       </div>
