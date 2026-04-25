@@ -93,6 +93,7 @@ export default function AdminRolesPage() {
           <a href="/dashboard" className="text-blue-500 hover:underline">Înapoi la Dashboard</a>
           <a href="/admin/activities" className="text-blue-500 hover:underline">Gestionează activități</a>
           <a href="/admin/resources" className="text-blue-500 hover:underline">Gestionează resurse</a>
+          <a href="/admin/statistics" className="text-blue-500 hover:underline">Statistici resurse</a>
         </div>
         
         {message && <p className="mb-4 text-green-600 font-bold bg-green-50 p-2 border border-green-200">{message}</p>}

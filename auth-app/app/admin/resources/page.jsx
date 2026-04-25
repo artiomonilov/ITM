@@ -69,7 +69,21 @@ export default function AdminResourcesPage() {
         return;
       }
 
-      await loadData();
+      setLoading(true);
+      const res = await fetch('/api/admin/resources');
+      const payload = await parseResponse(res);
+
+      if (res.ok) {
+        setData(payload);
+        setTotals({
+          totalTokens: payload.inventory?.totalTokens || 0,
+          totalSubscriptions: payload.inventory?.totalSubscriptions || 0,
+        });
+      } else {
+        setMessage(payload.message || 'Nu am putut incarca resursele.');
+      }
+
+      setLoading(false);
     }
 
     init();
@@ -158,6 +172,7 @@ export default function AdminResourcesPage() {
           <div className="flex gap-3 text-sm font-semibold">
             <Link href="/dashboard" className="text-blue-600 hover:underline">Inapoi la Dashboard</Link>
             <Link href="/admin/activities" className="text-blue-600 hover:underline">Gestioneaza activitati</Link>
+            <Link href="/admin/statistics" className="text-blue-600 hover:underline">Statistici resurse</Link>
             <Link href="/admin/roles" className="text-blue-600 hover:underline">Gestioneaza utilizatori</Link>
           </div>
         </div>
