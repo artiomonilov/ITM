@@ -4,7 +4,7 @@ import Course from '@/models/Course';
 import User from '@/models/User';
 import { sendCourseAssignmentEmail } from '@/lib/mailer';
 import { getServerSession } from 'next-auth';
-import { authOptions } from '../auth/[...nextauth]/route';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 
 export async function POST(req) {
   try {

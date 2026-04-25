@@ -1,8 +1,48 @@
 'use client';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-export default function CourseListClient({ courses, currentUserRole, currentUserId }) {
+export default function CourseListClient({ courses: initialCourses, currentUserRole, currentUserId }) {
   const [showOnlyMine, setShowOnlyMine] = useState(false);
+  const [courses, setCourses] = useState(initialCourses);
+  const [loadingId, setLoadingId] = useState(null);
+  const router = useRouter();
+
+  const handleEnroll = async (courseId) => {
+    if (!confirm('Ești sigur că vrei să te înrolezi la acest curs?')) return;
+    
+    setLoadingId(courseId);
+    try {
+      const res = await fetch('/api/courses/enroll', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ courseId }),
+      });
+
+      const data = await res.json();
+      
+      if (res.ok) {
+        // Actualizăm starea locală pentru un feedback vizual instant
+        setCourses(courses.map(c => {
+          if (c._id === courseId) {
+            return {
+              ...c,
+              studentsCount: c.studentsCount + 1,
+              studentsList: [...c.studentsList, currentUserId]
+            };
+          }
+          return c;
+        }));
+        router.refresh(); // Sincronizăm și pagina pe server
+      } else {
+        alert(`Eroare: ${data.message}`);
+      }
+    } catch (error) {
+      alert("A apărut o problemă la conexiune.");
+    } finally {
+      setLoadingId(null);
+    }
+  };
 
   const filteredCourses = showOnlyMine 
     ? courses.filter(c => c.studentsList.includes(currentUserId))
@@ -33,17 +73,34 @@ export default function CourseListClient({ courses, currentUserRole, currentUser
           {filteredCourses.map(c => {
              const isEnrolled = c.studentsList.includes(currentUserId);
              return (
-               <div key={c._id} className="bg-white border rounded shadow p-4 text-sm relative">
-                  <h3 className="text-lg font-bold text-blue-600 truncate">{c.name}</h3>
-                  <p className="text-gray-600 my-2 line-clamp-2 h-10">{c.description}</p>
+               <div key={c._id} className="bg-white border rounded shadow p-4 text-sm relative flex flex-col">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-bold text-blue-600 truncate">{c.name}</h3>
+                    <p className="text-gray-600 my-2 line-clamp-2 h-10">{c.description}</p>
+                  </div>
                   
                   <div className="mt-4 pt-4 border-t flex justify-between items-center text-xs text-gray-500 font-medium">
                     <span>👤 Prof: {c.teacher ? c.teacher.nume + ' ' + c.teacher.prenume : 'N/A'}</span>
                     <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">🎓 Studenți: {c.studentsCount}</span>
                   </div>
                   
-                  {currentUserRole === 'Student' && isEnrolled && (
-                    <div className="mt-2 text-xs text-center font-bold text-green-700 bg-green-50 py-1 rounded border border-green-200">✅ Ești înscris la acest curs</div>
+                  {/* Zona cu mesaje / butoane pentru Student */}
+                  {currentUserRole === 'Student' && (
+                    <div className="mt-3 pt-2">
+                       {isEnrolled ? (
+                         <div className="text-xs text-center font-bold text-green-700 bg-green-50 py-2 rounded border border-green-200">
+                           ✅ Ești înscris la acest curs
+                         </div>
+                       ) : (
+                         <button 
+                           onClick={() => handleEnroll(c._id)}
+                           disabled={loadingId === c._id}
+                           className="w-full text-xs text-center font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded transition-colors disabled:opacity-50"
+                         >
+                           {loadingId === c._id ? '⏳ Se procesează...' : '➕ Înrolează-te acum'}
+                         </button>
+                       )}
+                    </div>
                   )}
                </div>
              );
