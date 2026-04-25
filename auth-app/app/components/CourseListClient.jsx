@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function CourseListClient({ courses: initialCourses, currentUserRole, currentUserId }) {
@@ -79,29 +80,33 @@ export default function CourseListClient({ courses: initialCourses, currentUserR
                     <p className="text-gray-600 my-2 line-clamp-2 h-10">{c.description}</p>
                   </div>
                   
-                  <div className="mt-4 pt-4 border-t flex justify-between items-center text-xs text-gray-500 font-medium">
+                  <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-gray-500 font-medium gap-3">
                     <span>👤 Prof: {c.teacher ? c.teacher.nume + ' ' + c.teacher.prenume : 'N/A'}</span>
                     <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">🎓 Studenți: {c.studentsCount}</span>
                   </div>
-                  
-                  {/* Zona cu mesaje / butoane pentru Student */}
-                  {currentUserRole === 'Student' && (
-                    <div className="mt-3 pt-2">
-                       {isEnrolled ? (
-                         <div className="text-xs text-center font-bold text-green-700 bg-green-50 py-2 rounded border border-green-200">
-                           ✅ Ești înscris la acest curs
-                         </div>
-                       ) : (
-                         <button 
-                           onClick={() => handleEnroll(c._id)}
-                           disabled={loadingId === c._id}
-                           className="w-full text-xs text-center font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded transition-colors disabled:opacity-50"
-                         >
-                           {loadingId === c._id ? '⏳ Se procesează...' : '➕ Înrolează-te acum'}
-                         </button>
-                       )}
-                    </div>
-                  )}
+
+                  <div className="mt-4 flex flex-col gap-3">
+                    <Link href={`/courses/${c._id}`} className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 text-center py-2 rounded">
+                      📘 Detalii curs
+                    </Link>
+                    {currentUserRole === 'Student' && (
+                      <div>
+                        {isEnrolled ? (
+                          <div className="text-xs text-center font-bold text-green-700 bg-green-50 py-2 rounded border border-green-200">
+                            ✅ Ești înscris la acest curs
+                          </div>
+                        ) : (
+                          <button 
+                            onClick={() => handleEnroll(c._id)}
+                            disabled={loadingId === c._id}
+                            className="w-full text-xs text-center font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded transition-colors disabled:opacity-50"
+                          >
+                            {loadingId === c._id ? '⏳ Se procesează...' : '➕ Înrolează-te acum'}
+                          </button>
+                        )}
+                      </div>
+                    )}
+                  </div>
                </div>
              );
           })}

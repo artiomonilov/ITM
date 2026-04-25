@@ -1,0 +1,392 @@
+'use client';
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+
+export default function CourseDetailClient({ courseId, course, currentUserId, currentUserRole, isTeacher, isEnrolled }) {
+  const [materialTitle, setMaterialTitle] = useState('');
+  const [materialDescription, setMaterialDescription] = useState('');
+  const [materialComment, setMaterialComment] = useState('');
+  const [materialFile, setMaterialFile] = useState(null);
+  const [assignmentFile, setAssignmentFile] = useState(null);
+  const [assignmentComment, setAssignmentComment] = useState('');
+  const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const router = useRouter();
+
+  const handleMaterialUpload = async (event) => {
+    event.preventDefault();
+    if (!materialTitle || !materialFile) {
+      setMessage('Completeaza titlul si ataseaza un fisier.');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('title', materialTitle);
+      formData.append('description', materialDescription);
+      formData.append('comment', materialComment);
+      formData.append('file', materialFile);
+
+      const res = await fetch(`/api/courses/${courseId}/materials`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Material adaugat cu succes.');
+        setMaterialTitle('');
+        setMaterialDescription('');
+        setMaterialComment('');
+        setMaterialFile(null);
+        router.refresh();
+      } else {
+        setMessage(data.message || 'Eroare la incarcare material.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage('Eroare la conexiune.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignmentUpload = async (event) => {
+    event.preventDefault();
+    if (!assignmentFile) {
+      setMessage('Alege un fisier pentru tema.');
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const formData = new FormData();
+      formData.append('file', assignmentFile);
+      formData.append('comment', assignmentComment);
+
+      const res = await fetch(`/api/courses/${courseId}/assignments`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Tema a fost incarcata cu succes.');
+        setAssignmentFile(null);
+        setAssignmentComment('');
+        router.refresh();
+      } else {
+        setMessage(data.message || 'Eroare la incarcarea temei.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage('Eroare la conexiune.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMaterialDelete = async (materialId) => {
+    if (!confirm('Esti sigur ca vrei sa stergi acest material?')) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const res = await fetch(`/api/courses/${courseId}/materials`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Material sters cu succes.');
+        router.refresh();
+      } else {
+        setMessage(data.message || 'Eroare la stergere.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage('Eroare la conexiune.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleAssignmentDelete = async (assignmentId) => {
+    if (!confirm('Esti sigur ca vrei sa stergi aceasta tema?')) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const res = await fetch(`/api/courses/${courseId}/assignments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignmentId }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Tema a fost stearsa cu succes.');
+        router.refresh();
+      } else {
+        setMessage(data.message || 'Eroare la stergerea temei.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage('Eroare la conexiune.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = (fileUrl, fileName) => {
+    try {
+      const downloadUrl = `/api/download?url=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(fileName || 'download')}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Eroare la descarcare:', error);
+      setMessage('Eroare la descarcare. Incearca mai tarziu.');
+    }
+  };
+
+  return (
+    <div className="space-y-8">
+      {message && (
+        <div className={`p-4 rounded font-medium ${message.includes('succes') ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-red-100 text-red-800 border border-red-200'}`}>
+          {message}
+        </div>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-[2fr_1fr]">
+        <div className="bg-white rounded shadow p-6 border border-gray-200">
+          <h2 className="text-2xl font-bold mb-3">Despre curs</h2>
+          <p className="text-gray-700 mb-2"><strong>Nume:</strong> {course.name}</p>
+          <p className="text-gray-700 mb-2"><strong>Descriere:</strong> {course.description}</p>
+          <p className="text-gray-700 mb-2"><strong>Profesor:</strong> {course.teacherName}</p>
+          <p className="text-gray-700"><strong>Studenti inscrisi:</strong> {course.studentsCount}</p>
+        </div>
+
+        <div className="bg-white rounded shadow p-6 border border-gray-200">
+          <h2 className="text-2xl font-bold mb-3">Acces</h2>
+          <p className="text-gray-700 mb-2">Rol curent: <span className="font-semibold">{currentUserRole}</span></p>
+          <p className="text-gray-700">{isEnrolled ? 'Esti inscris/a la acest curs.' : 'Nu esti inscris/a la acest curs.'}</p>
+        </div>
+      </div>
+
+      {(currentUserRole === 'Profesor' || currentUserRole === 'Admin') && course.students && course.students.length > 0 && (
+        <section className="bg-white rounded shadow p-6 border border-gray-200">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-bold">Studenti inscrisi</h2>
+            <span className="text-sm text-gray-500">{course.students.length} studenti</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {course.students.map((student) => (
+              <div key={student._id} className="border rounded p-4 bg-blue-50">
+                <p className="font-semibold text-blue-800">{student.nume} {student.prenume}</p>
+                <p className="text-sm text-gray-600">{student.email}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <section className="bg-white rounded shadow p-6 border border-gray-200">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-bold">Materiale curs</h2>
+            <span className="text-sm text-gray-500">{course.materials.length} materiale</span>
+          </div>
+
+          {course.materials.length === 0 ? (
+            <p className="text-gray-500">Momentan nu exista materiale incarcate.</p>
+          ) : (
+            <div className="space-y-3">
+              {course.materials.map((material) => (
+                <div key={material.fileUrl} className="border rounded p-4 bg-slate-50">
+                  <h3 className="font-semibold text-blue-700">{material.title}</h3>
+                  {material.description && <p className="text-sm text-gray-600 mb-2">{material.description}</p>}
+                  {material.comment && <p className="text-sm text-gray-600 mb-2 italic">Comentariu: {material.comment}</p>}
+                  <div className="flex flex-wrap gap-2 text-sm text-gray-600">
+                    <span>Incarcat: {new Date(material.uploadedAt).toLocaleString('ro-RO')}</span>
+                    <span>de: {material.uploadedByName || 'Profesor'}</span>
+                  </div>
+                  <div className="flex gap-3 mt-3">
+                    <button
+                      onClick={() => handleDownload(material.fileUrl, material.fileName)}
+                      className="text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+                      disabled={loading}
+                    >
+                      Descarca material
+                    </button>
+                    {(currentUserRole === 'Admin' || (currentUserRole === 'Profesor' && material.teacherId === currentUserId)) && (
+                      <button
+                        onClick={() => handleMaterialDelete(material._id)}
+                        disabled={loading}
+                        className="text-sm font-bold text-red-700 hover:text-red-900 disabled:opacity-50"
+                      >
+                        Sterge
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {isTeacher && (
+            <form onSubmit={handleMaterialUpload} className="mt-6 space-y-4">
+              <h3 className="text-xl font-semibold">Incarca material nou</h3>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Titlu material</label>
+                <input
+                  value={materialTitle}
+                  onChange={(e) => setMaterialTitle(e.target.value)}
+                  className="mt-1 block w-full rounded border-gray-300 shadow-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Descriere</label>
+                <textarea
+                  value={materialDescription}
+                  onChange={(e) => setMaterialDescription(e.target.value)}
+                  className="mt-1 block w-full rounded border-gray-300 shadow-sm"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Comentariu optional</label>
+                <textarea
+                  value={materialComment}
+                  onChange={(e) => setMaterialComment(e.target.value)}
+                  className="mt-1 block w-full rounded border-gray-300 shadow-sm"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Fisier</label>
+                <input
+                  type="file"
+                  onChange={(e) => setMaterialFile(e.target.files?.[0] || null)}
+                  className="mt-1 block w-full"
+                  required
+                />
+              </div>
+              <button type="submit" disabled={loading} className="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
+                {loading ? 'Se incarca...' : 'Incarca material'}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <section className="bg-white rounded shadow p-6 border border-gray-200">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-bold">Teme</h2>
+            <span className="text-sm text-gray-500">{course.assignments.length} teme</span>
+          </div>
+
+          {currentUserRole === 'Student' ? (
+            <>
+              <form onSubmit={handleAssignmentUpload} className="space-y-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Ataseaza tema</label>
+                  <input
+                    type="file"
+                    onChange={(e) => setAssignmentFile(e.target.files?.[0] || null)}
+                    className="mt-1 block w-full"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700">Comentariu optional</label>
+                  <textarea
+                    value={assignmentComment}
+                    onChange={(e) => setAssignmentComment(e.target.value)}
+                    className="mt-1 block w-full rounded border-gray-300 shadow-sm"
+                    rows={3}
+                  />
+                </div>
+                <button type="submit" disabled={loading || !isEnrolled} className="inline-flex items-center justify-center rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50">
+                  {loading ? 'Se incarca...' : 'Incarca tema'}
+                </button>
+              </form>
+
+              {!isEnrolled && (
+                <p className="text-sm text-red-600">Trebuie sa fii inscris/a la curs pentru a incarca tema.</p>
+              )}
+
+              <div className="space-y-3">
+                {course.assignments.length === 0 ? (
+                  <p className="text-gray-500">Nu ai incarcat nicio tema.</p>
+                ) : (
+                  course.assignments.map((assignment) => (
+                    <div key={assignment.fileUrl} className="border rounded p-4 bg-slate-50">
+                      <p className="font-semibold">Fisier: {assignment.fileName}</p>
+                      <p className="text-sm text-gray-600">Trimis la: {new Date(assignment.submittedAt).toLocaleString('ro-RO')}</p>
+                      {assignment.comment && <p className="text-sm text-gray-600">Comentariu: {assignment.comment}</p>}
+                      <button
+                        onClick={() => handleDownload(assignment.fileUrl, assignment.fileName)}
+                        className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Descarca fisier
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="space-y-3">
+              {course.assignments.length === 0 ? (
+                <p className="text-gray-500">Nicio tema trimisa inca.</p>
+              ) : (
+                course.assignments.map((assignment) => (
+                  <div key={`${assignment.student}-${assignment.fileUrl}`} className="border rounded p-4 bg-slate-50">
+                    <p className="font-semibold">Student: {assignment.studentName || 'Student'}</p>
+                    <p className="text-sm text-gray-600">Fisier: {assignment.fileName}</p>
+                    <p className="text-sm text-gray-600">Trimis la: {new Date(assignment.submittedAt).toLocaleString('ro-RO')}</p>
+                    {assignment.comment && <p className="text-sm text-gray-600">Comentariu: {assignment.comment}</p>}
+                    <div className="mt-3 flex gap-3">
+                      <button
+                        onClick={() => handleDownload(assignment.fileUrl, assignment.fileName)}
+                        className="text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Descarca tema
+                      </button>
+                      <button
+                        onClick={() => handleAssignmentDelete(assignment._id)}
+                        className="text-sm font-bold text-red-700 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Sterge
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </section>
+      </div>
+    </div>
+  );
+}
