@@ -7,8 +7,8 @@ import AuditLog from '@/models/AuditLog';
 export async function GET() {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'Audit') {
-      return NextResponse.json({ message: 'Restrictionat: doar rolul Audit are acces.' }, { status: 403 });
+    if (!session || (session.user.role !== 'Audit' && session.user.role !== 'Admin')) {
+      return NextResponse.json({ message: 'Restrictionat: doar rolurile Audit si Admin au acces.' }, { status: 403 });
     }
 
     await connectDB();

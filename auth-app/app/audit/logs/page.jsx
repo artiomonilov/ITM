@@ -14,7 +14,7 @@ export default function AuditLogsPage() {
   useEffect(() => {
     async function init() {
       const session = await getSession();
-      if (!session || session.user.role !== 'Audit') {
+      if (!session || (session.user.role !== 'Audit' && session.user.role !== 'Admin')) {
         router.push('/dashboard');
         return;
       }
@@ -40,7 +40,7 @@ export default function AuditLogsPage() {
         <div className="mb-6 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h1 className="text-3xl font-bold">Jurnal audit</h1>
-            <p className="text-sm text-gray-600">Vizibil exclusiv pentru utilizatorii cu rolul Audit.</p>
+            <p className="text-sm text-gray-600">Vizibil pentru utilizatorii cu rolul Audit si pentru administratori.</p>
           </div>
           <Link href="/dashboard" className="text-blue-600 hover:underline font-semibold">
             Inapoi la Dashboard

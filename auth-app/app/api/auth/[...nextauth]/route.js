@@ -92,10 +92,28 @@ export const authOptions = {
         token.id = user.id;
         token.nume = user.nume;
         token.prenume = user.prenume;
+        token.suspended = false;
       }
       if (trigger === "update" && session?.role) {
         token.role = session.role;
       }
+
+      if (token?.id) {
+        await connectDB();
+        const currentUser = await User.findById(token.id).select('role nume prenume email isActive activationToken');
+
+        if (!currentUser) {
+          token.suspended = true;
+          return token;
+        }
+
+        token.role = currentUser.role;
+        token.nume = currentUser.nume;
+        token.prenume = currentUser.prenume;
+        token.email = currentUser.email;
+        token.suspended = !currentUser.isActive && !currentUser.activationToken;
+      }
+
       return token;
     },
     async session({ session, token }) {
@@ -103,6 +121,8 @@ export const authOptions = {
       session.user.role = token.role;
       session.user.nume = token.nume;
       session.user.prenume = token.prenume;
+      session.user.email = token.email;
+      session.user.suspended = Boolean(token.suspended);
       return session;
     }
   },
