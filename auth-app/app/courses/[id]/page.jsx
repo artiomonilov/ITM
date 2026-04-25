@@ -4,6 +4,7 @@ import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
+import Assignment from '@/models/Assignment';
 import User from '@/models/User';
 import CourseDetailClient from '@/app/components/CourseDetailClient';
 
@@ -35,7 +36,6 @@ export default async function CoursePage({ params }) {
 
   const userIds = [
     ...(course.materials || []).map(item => item.uploadedBy?.toString()).filter(Boolean),
-    ...(course.assignments || []).map(item => item.student?.toString()).filter(Boolean),
   ];
 
   const uniqueUserIds = [...new Set(userIds)];
@@ -44,6 +44,25 @@ export default async function CoursePage({ params }) {
     acc[user._id.toString()] = `${user.nume} ${user.prenume}`;
     return acc;
   }, {});
+
+  // Fetch assignments from Assignment collection
+  let assignmentsData = await Assignment.find({ course: id })
+    .populate('student', 'nume prenume')
+    .lean();
+
+  // Filter based on role
+  if (isStudent) {
+    assignmentsData = assignmentsData.filter(a => a.student?._id.toString() === session.user.id);
+  }
+
+  const assignments = assignmentsData.map(item => ({
+    student: item.student?._id.toString(),
+    studentName: item.student ? `${item.student.nume} ${item.student.prenume}` : null,
+    fileUrl: item.fileUrl,
+    fileName: item.fileName,
+    submittedAt: item.submittedAt,
+    comment: item.comment
+  }));
 
   const detailedCourse = {
     _id: course._id.toString(),
@@ -58,19 +77,7 @@ export default async function CoursePage({ params }) {
       uploadedAt: item.uploadedAt,
       uploadedByName: item.uploadedBy ? userMap[item.uploadedBy.toString()] || 'Profesor' : 'Profesor'
     })),
-    assignments: (course.assignments || []).filter(item => {
-      if (isStudent) {
-        return item.student?.toString() === session.user.id;
-      }
-      return true;
-    }).map(item => ({
-      student: item.student?.toString(),
-      studentName: item.student ? userMap[item.student.toString()] : null,
-      fileUrl: item.fileUrl,
-      fileName: item.fileName,
-      submittedAt: item.submittedAt,
-      comment: item.comment
-    }))
+    assignments: assignments
   };
 
   return (

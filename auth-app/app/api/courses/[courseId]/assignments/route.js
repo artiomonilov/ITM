@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
+import Assignment from '@/models/Assignment';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import cloudinary from '@/lib/cloudinary';
@@ -29,10 +30,6 @@ export async function POST(req, { params }) {
       return NextResponse.json({ message: 'Cursul nu a fost găsit.' }, { status: 404 });
     }
 
-    if (!course.assignments) {
-      course.assignments = [];
-    }
-
     if (!course.students.some(studentId => studentId.toString() === session.user.id)) {
       return NextResponse.json({ message: 'Trebuie să fii înscris la curs pentru a încărca tema.' }, { status: 403 });
     }
@@ -56,7 +53,9 @@ export async function POST(req, { params }) {
       uploadStream.end(buffer);
     });
 
-    course.assignments.push({
+    // Creeaza Assignment document
+    const assignment = await Assignment.create({
+      course: courseId,
       student: session.user.id,
       fileUrl: cloudinaryResult.secure_url,
       fileName: file.name,
@@ -64,9 +63,7 @@ export async function POST(req, { params }) {
       comment,
     });
 
-    await course.save();
-
-    return NextResponse.json({ message: 'Tema încărcată cu succes.' }, { status: 201 });
+    return NextResponse.json({ message: 'Tema încărcată cu succes.', assignment }, { status: 201 });
   } catch (error) {
     console.error('Eroare încărcare temă:', error);
     return NextResponse.json({ message: 'Eroare internă la încărcare.' }, { status: 500 });

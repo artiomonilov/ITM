@@ -11,13 +11,6 @@ const CourseSchema = new mongoose.Schema({
     fileUrl: { type: String, required: true },
     uploadedAt: { type: Date, default: Date.now },
     uploadedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
-  }],
-  assignments: [{
-    student: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
-    fileUrl: { type: String, required: true },
-    fileName: { type: String, required: true },
-    submittedAt: { type: Date, default: Date.now },
-    comment: { type: String }
   }]
 }, { timestamps: true });
 

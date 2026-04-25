@@ -220,10 +220,10 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 ) : (
                   course.assignments.map((assignment) => (
                     <div key={assignment.fileUrl} className="border rounded p-4 bg-slate-50">
-                      <p className="font-semibold">Tema trimisă: {assignment.fileName}</p>
+                      <p className="font-semibold">Fișier: {assignment.fileName}</p>
                       <p className="text-sm text-gray-600">Trimis la: {new Date(assignment.submittedAt).toLocaleString('ro-RO')}</p>
                       {assignment.comment && <p className="text-sm text-gray-600">Comentariu: {assignment.comment}</p>}
-                      <a href={assignment.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-2 text-sm font-bold text-blue-700 hover:underline">
+                      <a href={assignment.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline">
                         Descarcă fișier
                       </a>
                     </div>
@@ -242,7 +242,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                     <p className="text-sm text-gray-600">Fișier: {assignment.fileName}</p>
                     <p className="text-sm text-gray-600">Trimis la: {new Date(assignment.submittedAt).toLocaleString('ro-RO')}</p>
                     {assignment.comment && <p className="text-sm text-gray-600">Comentariu: {assignment.comment}</p>}
-                    <a href={assignment.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-2 text-sm font-bold text-blue-700 hover:underline">
+                    <a href={assignment.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline">
                       Descarcă tema
                     </a>
                   </div>
