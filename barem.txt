@@ -1,0 +1,48 @@
+BAREM
+
+Pagină -> Funcționalitate (Punctaj)
+
+Login (15p)
+    Implementare formular login	- 3p (nu se acordă punctaj parțial)
+	Implementare formular înregistrare - 3p (nu se acordă punctaj parțial)
+	Implementare modul de resetare parolă -	2p (nu se acordă punctaj parțial)
+	Gestionarea rolurilor (restricții de vizualizare) de către administrator (atribuire, modificare, revocare) - 6p (câte două puncte fiecare funcționalitate menționată)
+	Implementare mecanisme de securitate pe datele stocate în bază (hash pe parole) - 1p (nu se acordă punctaj parțial)
+
+Pagină principală (10p)
+    Afișarea cursurilor pentru studenți - 4p (se punctează orice format ales de utilizator)
+	Afișarea cursurilor unde studentul este înrolat - 4p (nu se acordă punctaj parțial)  
+	Înrolare student la un curs (care permite înscriere) - 2p (nu se acordă punctaj parțial)
+
+Pagină curs (20p)
+    Vizualizare materiale încărcate de profesor - 3p (nu se acordă punctaj parțial)
+	Afișarea resurselor digitale disponibile studentului (rămase) - 3p (nu se acordă punctaj parțial)
+	Solicitarea de resurse suplimentare - 2p (nu se acordă punctaj parțial)
+	Încărcarea temelor de către studenți - 2p (nu se acordă punctaj parțial)
+	Simularea consumului manual de token-uri de către student  - 5p (0.5p per activitate)
+	Simularea validării utilizării abonamentelor - 5p (nu se acordă punctaj parțial)
+
+Pagină Administrator (25p)
+	Adăugare (existența celor două tipuri de resurse) - 1p (nu se acordă punctaj parțial)
+	Adăugare activitate (existența a minim 10 activități) - 10p (1p per activitate)
+	Distribuirea credențialelor pentru abonamente via mail - 2p (nu se acordă punctaj parțial)
+	Introducerea numărului total de token-uri și distribuirea în funcție de necesitățile profesorilor și specificul cursurilor - 2p (nu se acordă punctaj parțial)
+	Introducerea numărului total de abonamente și distribuirea în funcție de necesitățile profesorilor și specificul cursurilor - 2p (nu se acordă punctaj parțial)
+	Acordarea resurselor suplimentare profesorului după solicitarea acestuia (10 %) - 3p (nu se acordă punctaj parțial)
+	Flux de aprobare administrator dacă solicitarea studentului depășește suplimentarul profesorului - 5p (nu se acordă punctaj parțial)
+
+Profesor (10p)
+    Creare cursuri cu introducerea numărului de resurse per student necesare unui curs - 4p (nu se acordă punctaj parțial)
+	Afișarea cursurilor pentru profesori - 2p (nu se acordă punctaj parțial)
+	Încărcare materiale în pagina de curs - 2p (nu se acordă punctaj parțial)
+    Aprobarea de resurse suplimentare - 2p (nu se acordă punctaj parțial)
+
+Jurnalizare (5p)
+    Implementare restricții de vizualizare a meniului (exclusiv pentru cei cu rol de audit) - 1p (nu se acordă punctaj parțial)
+	Implementare jurnalizare - 4p (nu se acordă punctaj parțial)
+
+
+Statistici (15p)
+    Vizualizarea modului de utilizare a resurselor  de către un student - 2p (nu se acordă punctaj parțial)
+	Vizualizarea modului de utilizare a resurselor la nivel de curs - 5p (nu se acordă punctaj parțial)
+	Vizualizarea modului de utilizare a resurselor la nivel de universitate - 8p (nu se acordă punctaj parțial)

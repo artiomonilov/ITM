@@ -1,0 +1,10 @@
+{
+  "name": "resource-service",
+  "version": "1.0.0",
+  "description": "HTTP resource service for AI and VPS resources",
+  "type": "module",
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test"
+  }
+}
