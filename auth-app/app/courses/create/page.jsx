@@ -6,11 +6,26 @@ import { getSession } from 'next-auth/react';
 export default function CreateCoursePage() {
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
+  const [maxStudents, setMaxStudents] = useState(0);
+  const [tokenPerStudent, setTokenPerStudent] = useState(0);
+  const [subscriptionPerStudent, setSubscriptionPerStudent] = useState(0);
   const [students, setStudents] = useState([]);
   const [selectedStudents, setSelectedStudents] = useState([]);
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+
+  async function loadStudents() {
+    try {
+      const res = await fetch('/api/students');
+      if (res.ok) {
+        const data = await res.json();
+        setStudents(data);
+      }
+    } catch (error) {
+      console.error('Failed to load students:', error);
+    }
+  }
 
   useEffect(() => {
     async function checkAuthAndLoad() {
@@ -24,18 +39,6 @@ export default function CreateCoursePage() {
     }
     checkAuthAndLoad();
   }, [router]);
-
-  const loadStudents = async () => {
-    try {
-      const res = await fetch('/api/students');
-      if (res.ok) {
-        const data = await res.json();
-        setStudents(data);
-      }
-    } catch (error) {
-      console.error('Failed to load students:', error);
-    }
-  };
 
   const handleStudentSelect = (studentId) => {
     if (selectedStudents.includes(studentId)) {
@@ -54,14 +57,24 @@ export default function CreateCoursePage() {
       const res = await fetch('/api/courses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, description, students: selectedStudents }),
+        body: JSON.stringify({
+          name,
+          description,
+          students: selectedStudents,
+          maxStudents,
+          tokenPerStudent,
+          subscriptionPerStudent,
+        }),
       });
 
       const data = await res.json();
       if (res.ok) {
-        setMessage('V Curs creat cu succes! Studenții au fost notificați pe e-mail.');
+        setMessage('Curs creat cu succes! Studenții au fost notificați pe e-mail, iar cererile de resurse au fost trimise către administrator.');
         setName('');
         setDescription('');
+        setMaxStudents(0);
+        setTokenPerStudent(0);
+        setSubscriptionPerStudent(0);
         setSelectedStudents([]);
       } else {
         setMessage(`Eroare: ${data.message}`);
@@ -106,6 +119,47 @@ export default function CreateCoursePage() {
               onChange={(e) => setDescription(e.target.value)}
               required
             />
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 mb-6">
+            <div>
+              <label className="block text-gray-700 font-bold mb-2">Număr maxim studenți</label>
+              <input
+                type="number"
+                min="0"
+                className="border border-gray-300 p-2 rounded w-full"
+                value={maxStudents}
+                onChange={(e) => setMaxStudents(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-bold mb-2">Tokenuri / student</label>
+              <input
+                type="number"
+                min="0"
+                className="border border-gray-300 p-2 rounded w-full"
+                value={tokenPerStudent}
+                onChange={(e) => setTokenPerStudent(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-gray-700 font-bold mb-2">Abonamente / student</label>
+              <input
+                type="number"
+                min="0"
+                className="border border-gray-300 p-2 rounded w-full"
+                value={subscriptionPerStudent}
+                onChange={(e) => setSubscriptionPerStudent(e.target.value)}
+                required
+              />
+            </div>
+          </div>
+
+          <div className="mb-6 rounded border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            Total solicitat către administrator: <strong>{(Number(maxStudents) || 0) * (Number(tokenPerStudent) || 0)}</strong> tokenuri și <strong>{(Number(maxStudents) || 0) * (Number(subscriptionPerStudent) || 0)}</strong> abonamente.
+            Supliment profesor (10%): <strong>{Math.ceil(((Number(maxStudents) || 0) * (Number(tokenPerStudent) || 0)) * 0.1)}</strong> tokenuri și <strong>{Math.ceil(((Number(maxStudents) || 0) * (Number(subscriptionPerStudent) || 0)) * 0.1)}</strong> abonamente.
           </div>
 
           <div className="mb-6">

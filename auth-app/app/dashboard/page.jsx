@@ -57,6 +57,8 @@ export default async function DashboardPage() {
           <div className="bg-yellow-100 p-4 rounded mb-4 border border-yellow-300">
             <h2 className="text-xl font-bold mb-2">Secțiune Administrator</h2>
             <Link href="/admin/roles" className="text-blue-600 hover:underline font-bold block mb-1">» Gestionează utilizatorii</Link>
+            <Link href="/admin/activities" className="text-blue-600 hover:underline font-bold block mb-1">» Gestionează activități</Link>
+            <Link href="/admin/resources" className="text-blue-600 hover:underline font-bold block mb-1">» Gestionează resurse</Link>
             <Link href="/courses/create" className="text-blue-600 hover:underline font-bold block">» Creează Curs Nou (Global)</Link>
           </div>
         )}

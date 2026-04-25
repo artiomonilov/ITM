@@ -1,5 +1,6 @@
 'use client';
 import { useState } from 'react';
+import Link from 'next/link';
 import { signIn } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
 
@@ -28,8 +29,8 @@ export default function LoginPage() {
         <input type="password" placeholder="Parolă" onChange={(e) => setPassword(e.target.value)} required className="border p-2 rounded" />
         <button type="submit" className="bg-blue-500 text-white p-2 rounded hover:bg-blue-600">Login</button>
         <div className="flex justify-between text-sm mt-4">
-          <a href="/register" className="text-blue-500 hover:underline">Înregistrare</a>
-          <a href="/reset-password" className="text-blue-500 hover:underline">Resetare parolă</a>
+          <Link href="/register" className="text-blue-500 hover:underline">Înregistrare</Link>
+          <Link href="/reset-password" className="text-blue-500 hover:underline">Resetare parolă</Link>
         </div>
       </form>
     </div>
