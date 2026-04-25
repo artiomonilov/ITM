@@ -48,6 +48,7 @@ export const authOptions = {
         }
 
         if (!user.isActive) {
+          const isSuspendedAccount = !user.activationToken;
           await logAuditEvent({
             actorId: user._id,
             actorEmail: user.email,
@@ -56,9 +57,15 @@ export const authOptions = {
             targetType: 'User',
             targetId: user._id.toString(),
             targetLabel: user.email,
-            details: 'Autentificare blocata: cont inactiv.',
+            details: isSuspendedAccount
+              ? 'Autentificare blocata: cont suspendat.'
+              : 'Autentificare blocata: cont inactiv.',
             status: 'FAILURE',
           });
+          if (isSuspendedAccount) {
+            throw new Error("Eroarea la conectare");
+          }
+
           throw new Error("Contul tău nu este activat. Verifică e-mail-ul pentru activare.");
         }
 
