@@ -1,12 +1,16 @@
 import fs from 'node:fs';
 import https from 'node:https';
+import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { config } from './config.js';
 
+const resolvePath = (urlOrPath) =>
+  urlOrPath instanceof URL ? fileURLToPath(urlOrPath) : urlOrPath;
+
 const { handleRequest } = createApp(config);
 const tlsOptions = {
-  key: fs.readFileSync(config.tlsKeyPath),
-  cert: fs.readFileSync(config.tlsCertPath)
+  key: fs.readFileSync(resolvePath(config.tlsKeyPath)),
+  cert: fs.readFileSync(resolvePath(config.tlsCertPath))
 };
 
 const server = https.createServer(tlsOptions, async (request, response) => {

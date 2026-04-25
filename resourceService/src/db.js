@@ -1,5 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
 import { decryptValue, encryptValue } from './crypto.js';
 
@@ -11,11 +12,8 @@ const DEFAULT_SERVICE_USERS = [
 export class ResourceDatabase {
   constructor({ dbPath, encryptionKey, vpsPool }) {
     const resolvedPath =
-      dbPath instanceof URL ? dbPath : path.resolve(dbPath);
-    const dirPath =
-      resolvedPath instanceof URL
-        ? path.dirname(resolvedPath.pathname)
-        : path.dirname(resolvedPath);
+      dbPath instanceof URL ? fileURLToPath(dbPath) : path.resolve(dbPath);
+    const dirPath = path.dirname(resolvedPath);
 
     fs.mkdirSync(dirPath, { recursive: true });
 
