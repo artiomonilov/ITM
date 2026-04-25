@@ -3,15 +3,19 @@ import bcrypt from 'bcryptjs';
 import { connectDB } from '@/lib/mongodb';
 import User from '@/models/User';
 import { logAuditEvent } from '@/lib/audit';
+import { ensureTokenString, validateStrongPassword } from '@/lib/inputSecurity';
 
 export async function POST(req) {
   try {
     const { token, newPassword } = await req.json();
+    const safeToken = ensureTokenString(token);
+    const safePassword = validateStrongPassword(newPassword);
+
     await connectDB();
 
-    const user = await User.findOne({ 
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() } // Token sa fie valabil și neexpirat
+    const user = await User.findOne({
+      resetToken: safeToken,
+      resetTokenExpiry: { $gt: Date.now() },
     });
 
     if (!user) {
@@ -21,18 +25,16 @@ export async function POST(req) {
         details: 'Resetare parola esuata: token invalid sau expirat.',
         status: 'FAILURE',
       });
-      return NextResponse.json({ message: "Token invalid sau expirat." }, { status: 400 });
+      return NextResponse.json({ message: 'Token invalid sau expirat.' }, { status: 400 });
     }
 
-    // Criptare noua parola
-    const newHashedPassword = await bcrypt.hash(newPassword, 10);
-    
-    // Invalidation token & Save password
+    const newHashedPassword = await bcrypt.hash(safePassword, 12);
+
     await User.updateOne(
       { _id: user._id },
-      { 
+      {
         $set: { password: newHashedPassword },
-        $unset: { resetToken: "", resetTokenExpiry: "" }
+        $unset: { resetToken: '', resetTokenExpiry: '' },
       }
     );
 
@@ -48,8 +50,10 @@ export async function POST(req) {
       status: 'SUCCESS',
     });
 
-    return NextResponse.json({ message: "Parola a fost modificată." }, { status: 200 });
+    return NextResponse.json({ message: 'Parola a fost modificata.' }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ message: "A apărut o eroare la salvare." }, { status: 500 });
+    return NextResponse.json({
+      message: error?.message || 'A aparut o eroare la salvare.',
+    }, { status: error?.message ? 400 : 500 });
   }
 }

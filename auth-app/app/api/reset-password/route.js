@@ -4,54 +4,71 @@ import { connectDB } from '@/lib/mongodb';
 import User from '@/models/User';
 import { sendResetEmail } from '@/lib/mailer';
 import { logAuditEvent } from '@/lib/audit';
+import { normalizeEmail } from '@/lib/inputSecurity';
+
+const GENERIC_RESET_MESSAGE = 'Daca adresa exista, ai primit un email.';
 
 export async function POST(req) {
+  let safeEmail = '';
+
   try {
     const { email } = await req.json();
+    safeEmail = normalizeEmail(email);
+  } catch (error) {
+    await logAuditEvent({
+      actorEmail: safeEmail || 'invalid-email',
+      action: 'REQUEST_PASSWORD_RESET',
+      targetType: 'User',
+      targetLabel: safeEmail || 'invalid-email',
+      details: 'Solicitare resetare parola cu email invalid.',
+      status: 'FAILURE',
+    });
+
+    return NextResponse.json({ message: GENERIC_RESET_MESSAGE }, { status: 200 });
+  }
+
+  try {
     await connectDB();
 
-    const user = await User.findOne({ email });
+    const user = await User.findOne({ email: safeEmail });
     if (!user) {
       await logAuditEvent({
-        actorEmail: email,
+        actorEmail: safeEmail,
         action: 'REQUEST_PASSWORD_RESET',
         targetType: 'User',
-        targetLabel: email,
+        targetLabel: safeEmail,
         details: 'Solicitare resetare parola pentru utilizator inexistent.',
         status: 'FAILURE',
       });
-      // Returnam succes oarecum ca the user sa nu stie daca un email exsita au ba (security practice)
-      return NextResponse.json({ message: "Dacă adresa există, ai primit un email." }, { status: 200 });
+
+      return NextResponse.json({ message: GENERIC_RESET_MESSAGE }, { status: 200 });
     }
 
-    // Generate Token
     const resetToken = crypto.randomBytes(32).toString('hex');
-    const resetTokenExpiry = Date.now() + 3600000; // 1 ORA
+    const resetTokenExpiry = Date.now() + 3600000;
 
     await User.updateOne(
       { _id: user._id },
       { $set: { resetToken, resetTokenExpiry } }
     );
 
-    // Creare Link Frontend
     const resetUrl = `${process.env.NEXTAUTH_URL}/reset-password/${resetToken}`;
-    
-    // Trimite Mail
     const emailSent = await sendResetEmail(user.email, resetUrl);
 
     if (!emailSent) {
-       await logAuditEvent({
-         actorId: user._id,
-         actorEmail: user.email,
-         actorRole: user.role,
-         action: 'REQUEST_PASSWORD_RESET',
-         targetType: 'User',
-         targetId: user._id.toString(),
-         targetLabel: user.email,
-         details: 'Emailul de resetare nu a putut fi trimis.',
-         status: 'FAILURE',
-       });
-       return NextResponse.json({ message: "Eroare la trimiterea email-ului de resetare. Verifica setarile SMTP in .env." }, { status: 500 });
+      await logAuditEvent({
+        actorId: user._id,
+        actorEmail: user.email,
+        actorRole: user.role,
+        action: 'REQUEST_PASSWORD_RESET',
+        targetType: 'User',
+        targetId: user._id.toString(),
+        targetLabel: user.email,
+        details: 'Emailul de resetare nu a putut fi trimis.',
+        status: 'FAILURE',
+      });
+
+      return NextResponse.json({ message: 'Eroare la trimiterea email-ului de resetare. Verifica setarile SMTP in .env.' }, { status: 500 });
     }
 
     await logAuditEvent({
@@ -66,9 +83,9 @@ export async function POST(req) {
       status: 'SUCCESS',
     });
 
-    return NextResponse.json({ message: "Dacă adresa există, ai primit un email." }, { status: 200 });
+    return NextResponse.json({ message: GENERIC_RESET_MESSAGE }, { status: 200 });
   } catch (error) {
     console.error('Reset Password Error:', error);
-    return NextResponse.json({ message: "A apărut o eroare interna." }, { status: 500 });
+    return NextResponse.json({ message: 'A aparut o eroare interna.' }, { status: 500 });
   }
 }

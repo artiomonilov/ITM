@@ -4,6 +4,7 @@ import Course from '@/models/Course';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { logAuditEvent } from '@/lib/audit';
+import { ensureObjectId } from '@/lib/inputSecurity';
 
 export async function POST(req) {
   try {
@@ -14,14 +15,11 @@ export async function POST(req) {
     }
 
     const { courseId } = await req.json();
-
-    if (!courseId) {
-      return NextResponse.json({ message: "ID-ul cursului este obligatoriu." }, { status: 400 });
-    }
+    const safeCourseId = ensureObjectId(courseId, 'ID-ul cursului');
 
     await connectDB();
 
-    const course = await Course.findById(courseId);
+    const course = await Course.findById(safeCourseId);
     if (!course) {
       return NextResponse.json({ message: "Cursul nu a fost găsit." }, { status: 404 });
     }
