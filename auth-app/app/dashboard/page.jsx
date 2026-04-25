@@ -18,9 +18,20 @@ export default async function DashboardPage() {
     const Course = (await import('@/models/Course')).default;
     await connectDB();
 
-    let filter = { destination: 'STUDENT' };
-    if (session.user.role === 'Profesor') {
-      filter = { teacher: session.user.id, destination: 'STUDENT' };
+    const studentDestinationFilter = {
+      $or: [
+        { destination: 'STUDENT' },
+        { destination: { $exists: false } },
+        { destination: null },
+      ],
+    };
+
+    let filter = studentDestinationFilter;
+    if (session.user.role === 'Student') {
+      filter = {
+        ...studentDestinationFilter,
+        students: session.user.id,
+      };
     }
 
     const coursesList = await Course.find(filter)
@@ -59,12 +70,12 @@ export default async function DashboardPage() {
           </div>
         )}
 
-        {/* {session.user.role === 'Profesor' && (
-          <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-4 text-black">
-            <h2 className="mb-2 text-xl font-bold">Actiuni Profesor</h2>
-            <Link href="/courses/create" className="inline-block rounded bg-blue-100 px-3 py-2 font-bold text-blue-600 hover:underline">Creeaza Curs Nou</Link>
+        {session.user.role === 'Profesor' && (
+          <div className="mb-4 rounded border border-blue-300 bg-blue-50 p-4">
+            <h2 className="mb-2 text-xl font-bold">Sectiune Profesor</h2>
+            <Link href="/courses/create" className="inline-block rounded bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700">+ Creeaza Curs Nou</Link>
           </div>
-        )} */}
+        )}
 
         {session.user.role !== 'Admin' && session.user.role !== 'Profesor' && session.user.role !== 'Student' && (
           <div className="mb-4 rounded bg-gray-200 p-4 text-black">

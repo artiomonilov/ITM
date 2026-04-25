@@ -34,10 +34,10 @@ export default function CreateCoursePage() {
 
   async function loadProfessorCourses() {
     try {
-      const res = await fetch('/api/courses');
+      const res = await fetch('/api/courses?destination=PROFESSOR&scope=all');
       if (res.ok) {
         const data = await res.json();
-        setProfessorCourses(data.filter((course) => (course.destination || 'STUDENT') === 'PROFESSOR'));
+        setProfessorCourses(data);
       }
     } catch (error) {
       console.error('Failed to load professor courses:', error);

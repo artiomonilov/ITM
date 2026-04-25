@@ -94,7 +94,7 @@ export async function POST(req) {
   }
 }
 
-export async function GET() {
+export async function GET(req) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
@@ -102,12 +102,25 @@ export async function GET() {
     }
 
     await connectDB();
+    const { searchParams } = new URL(req.url);
+    const destination = searchParams.get('destination');
+    const scope = searchParams.get('scope');
 
     let filter = {};
     if (session.user.role === 'Student') {
       filter = { students: session.user.id, destination: 'STUDENT' };
     } else if (session.user.role === 'Profesor') {
-      filter = { teacher: session.user.id };
+      if (scope === 'all' && destination === 'PROFESSOR') {
+        filter = { destination: 'PROFESSOR' };
+      } else {
+        filter = { teacher: session.user.id };
+      }
+    }
+
+    if (destination === 'STUDENT') {
+      filter = { ...filter, destination: 'STUDENT' };
+    } else if (destination === 'PROFESSOR') {
+      filter = { ...filter, destination: 'PROFESSOR' };
     }
 
     const courses = await Course.find(filter)

@@ -189,6 +189,7 @@ export async function PUT(req) {
       }
 
       await Resource.create({
+        studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
         profId: request.professorId._id,
         courseId: request.courseId._id,
         type: 'TOKEN',
@@ -215,6 +216,7 @@ export async function PUT(req) {
         }
 
         await Resource.create({
+          studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
           profId: request.professorId._id,
           courseId: request.courseId._id,
           type: 'SUBSCRIPTION',
