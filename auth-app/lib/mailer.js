@@ -68,3 +68,39 @@ export const sendActivationEmail = async (email, activationUrl) => {
     return false;
   }
 };
+
+export const sendCourseAssignmentEmail = async (email, courseName, teacherName) => {
+  const transporter = nodemailer.createTransport({
+    host: process.env.SMTP_HOST || 'smtp.gmail.com',
+    port: parseInt(process.env.SMTP_PORT) || 465,
+    secure: true,
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    }
+  });
+
+  const mailOptions = {
+    from: `"Platfroma De Login" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: `Ai fost înscris la o nouă materie: ${courseName}`,
+    html: `
+      <h2>Salutare!</h2>
+      <p>Ai fost înscris ca student în noul curs: <strong>${courseName}</strong>.</p>
+      <p>Acest curs a fost creat și îți este predat de către profesorul <strong>${teacherName}</strong>.</p>
+      <br/><br/>
+      <p>Te rugăm să te conectezi în platformă pentru a vizualiza lista de cursuri.</p>
+    `,
+    
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Nodemailer Error (Course Assignment):', error);
+    return false;
+  }
+};
+
+  
