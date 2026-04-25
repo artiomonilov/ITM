@@ -114,6 +114,23 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
         </div>
       </div>
 
+      {(currentUserRole === 'Profesor' || currentUserRole === 'Admin') && course.students && course.students.length > 0 && (
+        <section className="bg-white rounded shadow p-6 border border-gray-200">
+          <div className="mb-4 flex items-center justify-between gap-4">
+            <h2 className="text-2xl font-bold">Studenți înscriși</h2>
+            <span className="text-sm text-gray-500">{course.students.length} studenți</span>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+            {course.students.map((student) => (
+              <div key={student._id} className="border rounded p-4 bg-blue-50">
+                <p className="font-semibold text-blue-800">{student.nume} {student.prenume}</p>
+                <p className="text-sm text-gray-600">{student.email}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <div className="grid gap-4 lg:grid-cols-2">
         <section className="bg-white rounded shadow p-6 border border-gray-200">
           <div className="mb-4 flex items-center justify-between gap-4">

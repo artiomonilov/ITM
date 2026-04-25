@@ -70,6 +70,12 @@ export default async function CoursePage({ params }) {
     description: course.description,
     teacherName: course.teacher ? `${course.teacher.nume} ${course.teacher.prenume}` : 'N/A',
     studentsCount: course.students.length,
+    students: course.students.map(student => ({
+      _id: student._id.toString(),
+      nume: student.nume,
+      prenume: student.prenume,
+      email: student.email
+    })),
     materials: (course.materials || []).map(item => ({
       title: item.title,
       description: item.description,
