@@ -3,6 +3,12 @@ import mongoose from 'mongoose';
 const CourseSchema = new mongoose.Schema({
   name: { type: String, required: true },
   description: { type: String, required: true },
+  destination: {
+    type: String,
+    enum: ['STUDENT', 'PROFESSOR'],
+    default: 'STUDENT',
+    required: true,
+  },
   teacher: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   students: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   materials: [{
@@ -21,5 +27,11 @@ const CourseSchema = new mongoose.Schema({
     subscriptionExtraAllowance: { type: Number, default: 0 },
   }
 }, { timestamps: true });
+
+const existingCourseModel = mongoose.models.Course;
+
+if (existingCourseModel && !existingCourseModel.schema.path('destination')) {
+  delete mongoose.models.Course;
+}
 
 export default mongoose.models.Course || mongoose.model('Course', CourseSchema);

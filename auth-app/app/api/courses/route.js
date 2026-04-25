@@ -11,20 +11,24 @@ export async function POST(req) {
   try {
     const session = await getServerSession(authOptions);
     if (!session || (session.user.role !== 'Admin' && session.user.role !== 'Profesor')) {
-      return NextResponse.json({ message: "Nu ai permisiuni pentru a crea cursuri." }, { status: 403 });
+      return NextResponse.json({ message: 'Nu ai permisiuni pentru a crea cursuri.' }, { status: 403 });
     }
 
-    const { name, description, students, maxStudents, tokenPerStudent, subscriptionPerStudent } = await req.json();
+    const { name, description, destination, students, maxStudents, tokenPerStudent, subscriptionPerStudent } = await req.json();
 
     if (!name || !description) {
-      return NextResponse.json({ message: "Numele și descrierea cursului sunt obligatorii." }, { status: 400 });
+      return NextResponse.json({ message: 'Numele si descrierea cursului sunt obligatorii.' }, { status: 400 });
     }
 
     await connectDB();
 
-    const maxStudentsValue = Math.max(Number(maxStudents) || 0, (students || []).length);
-    const tokenPerStudentValue = Math.max(0, Number(tokenPerStudent) || 0);
-    const subscriptionPerStudentValue = Math.max(0, Number(subscriptionPerStudent) || 0);
+    const courseDestination = destination === 'PROFESSOR' ? 'PROFESSOR' : 'STUDENT';
+    const assignedStudents = courseDestination === 'STUDENT' ? (students || []) : [];
+    const maxStudentsValue = courseDestination === 'STUDENT'
+      ? Math.max(Number(maxStudents) || 0, assignedStudents.length)
+      : 0;
+    const tokenPerStudentValue = courseDestination === 'STUDENT' ? Math.max(0, Number(tokenPerStudent) || 0) : 0;
+    const subscriptionPerStudentValue = courseDestination === 'STUDENT' ? Math.max(0, Number(subscriptionPerStudent) || 0) : 0;
     const tokenTotalRequested = maxStudentsValue * tokenPerStudentValue;
     const subscriptionTotalRequested = maxStudentsValue * subscriptionPerStudentValue;
     const tokenExtraAllowance = Math.ceil(tokenTotalRequested * 0.1);
@@ -33,8 +37,9 @@ export async function POST(req) {
     const newCourse = await Course.create({
       name,
       description,
+      destination: courseDestination,
       teacher: session.user.id,
-      students: students || [],
+      students: assignedStudents,
       maxStudents: maxStudentsValue,
       resourceRequirements: {
         tokenPerStudent: tokenPerStudentValue,
@@ -47,25 +52,25 @@ export async function POST(req) {
     });
 
     const resourceRequests = [];
-    if (tokenTotalRequested > 0) {
+    if (courseDestination === 'STUDENT' && tokenTotalRequested > 0) {
       resourceRequests.push({
         professorId: session.user.id,
         courseId: newCourse._id,
         type: 'TOKEN',
         quantity: tokenTotalRequested,
         scope: 'COURSE_SETUP',
-        reason: `Necesar inițial pentru curs (${tokenPerStudentValue} tokenuri/student x ${maxStudentsValue} studenți). Supliment profesor: ${tokenExtraAllowance}.`,
+        reason: `Necesar initial pentru curs (${tokenPerStudentValue} tokenuri/student x ${maxStudentsValue} studenti). Supliment profesor: ${tokenExtraAllowance}.`,
       });
     }
 
-    if (subscriptionTotalRequested > 0) {
+    if (courseDestination === 'STUDENT' && subscriptionTotalRequested > 0) {
       resourceRequests.push({
         professorId: session.user.id,
         courseId: newCourse._id,
         type: 'SUBSCRIPTION',
         quantity: subscriptionTotalRequested,
         scope: 'COURSE_SETUP',
-        reason: `Necesar inițial pentru curs (${subscriptionPerStudentValue} abonamente/student x ${maxStudentsValue} studenți). Supliment profesor: ${subscriptionExtraAllowance}.`,
+        reason: `Necesar initial pentru curs (${subscriptionPerStudentValue} abonamente/student x ${maxStudentsValue} studenti). Supliment profesor: ${subscriptionExtraAllowance}.`,
       });
     }
 
@@ -73,51 +78,45 @@ export async function POST(req) {
       await ResourceRequest.insertMany(resourceRequests);
     }
 
-    // Send emails to assigned students
-    if (students && students.length > 0) {
-      // Get teacher name
+    if (courseDestination === 'STUDENT' && assignedStudents.length > 0) {
       const teacherName = `${session.user.nume} ${session.user.prenume}`;
-      
-      const assignedStudents = await User.find({ _id: { $in: students } });
-      
-      for (const student of assignedStudents) {
-         sendCourseAssignmentEmail(student.email, name, teacherName);
+      const assignedStudentsUsers = await User.find({ _id: { $in: assignedStudents } });
+
+      for (const student of assignedStudentsUsers) {
+        sendCourseAssignmentEmail(student.email, name, teacherName);
       }
     }
 
-    return NextResponse.json({ message: "Curs creat cu succes!" }, { status: 201 });
+    return NextResponse.json({ message: 'Curs creat cu succes!' }, { status: 201 });
   } catch (error) {
-    console.error("Error creating course:", error);
-    return NextResponse.json({ message: "Eroare la crearea cursului." }, { status: 500 });
+    console.error('Error creating course:', error);
+    return NextResponse.json({ message: 'Eroare la crearea cursului.' }, { status: 500 });
   }
 }
 
-export async function GET(req) {
+export async function GET() {
   try {
     const session = await getServerSession(authOptions);
     if (!session) {
-      return NextResponse.json({ message: "Neautorizat" }, { status: 403 });
+      return NextResponse.json({ message: 'Neautorizat' }, { status: 403 });
     }
 
     await connectDB();
 
-    // Daca este profesor/admin => Vede cursurile lui / toate
-    // Daca este student => Vede doar cursurile unde este atribuit
     let filter = {};
     if (session.user.role === 'Student') {
-      filter = { students: session.user.id };
+      filter = { students: session.user.id, destination: 'STUDENT' };
     } else if (session.user.role === 'Profesor') {
-       filter = { teacher: session.user.id };
+      filter = { teacher: session.user.id };
     }
 
-    // Vom expanda si referintele de student si teacher ca sa aratam numele nu decat ID-ul
     const courses = await Course.find(filter)
-        .populate('teacher', 'nume prenume')
-        .populate('students', 'nume prenume email');
+      .populate('teacher', 'nume prenume')
+      .populate('students', 'nume prenume email');
 
     return NextResponse.json(courses, { status: 200 });
   } catch (error) {
-    console.error('Eroare oprimare cursuri', error);
-    return NextResponse.json({ message: "Eroare la preluarea cursurilor." }, { status: 500 });
+    console.error('Eroare preluare cursuri', error);
+    return NextResponse.json({ message: 'Eroare la preluarea cursurilor.' }, { status: 500 });
   }
 }
