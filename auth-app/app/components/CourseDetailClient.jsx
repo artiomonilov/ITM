@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 export default function CourseDetailClient({ courseId, course, currentUserId, currentUserRole, isTeacher, isEnrolled }) {
   const [materialTitle, setMaterialTitle] = useState('');
   const [materialDescription, setMaterialDescription] = useState('');
+  const [materialComment, setMaterialComment] = useState('');
   const [materialFile, setMaterialFile] = useState(null);
   const [assignmentFile, setAssignmentFile] = useState(null);
   const [assignmentComment, setAssignmentComment] = useState('');
@@ -26,6 +27,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
       const formData = new FormData();
       formData.append('title', materialTitle);
       formData.append('description', materialDescription);
+      formData.append('comment', materialComment);
       formData.append('file', materialFile);
 
       const res = await fetch(`/api/courses/${courseId}/materials`, {
@@ -38,6 +40,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
         setMessage('Material adăugat cu succes.');
         setMaterialTitle('');
         setMaterialDescription('');
+        setMaterialComment('');
         setMaterialFile(null);
         router.refresh();
       } else {
@@ -79,6 +82,36 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
         router.refresh();
       } else {
         setMessage(data.message || 'Eroare la încărcarea temei.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage('Eroare la conexiune.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMaterialDelete = async (materialId) => {
+    if (!confirm('Ești sigur că vrei să ștergi acest material?')) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const res = await fetch(`/api/courses/${courseId}/materials`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materialId }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Material șters cu succes.');
+        router.refresh();
+      } else {
+        setMessage(data.message || 'Eroare la ștergere.');
       }
     } catch (error) {
       console.error(error);
@@ -146,13 +179,25 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 <div key={material.fileUrl} className="border rounded p-4 bg-slate-50">
                   <h3 className="font-semibold text-blue-700">{material.title}</h3>
                   {material.description && <p className="text-sm text-gray-600 mb-2">{material.description}</p>}
+                  {material.comment && <p className="text-sm text-gray-600 mb-2 italic">Comentariu: {material.comment}</p>}
                   <div className="flex flex-wrap gap-2 text-sm text-gray-600">
                     <span>Încarcat: {new Date(material.uploadedAt).toLocaleString('ro-RO')}</span>
                     <span>de: {material.uploadedByName || 'Profesor'}</span>
                   </div>
-                  <a href={material.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline">
-                    Descarcă material
-                  </a>
+                  <div className="flex gap-3 mt-3">
+                    <a href={material.fileUrl} target="_blank" rel="noreferrer" className="inline-block text-sm font-bold text-blue-700 hover:underline">
+                      Descarcă material
+                    </a>
+                    {(currentUserRole === 'Admin' || (currentUserRole === 'Profesor' && material.teacherId === currentUserId)) && (
+                      <button
+                        onClick={() => handleMaterialDelete(material._id)}
+                        disabled={loading}
+                        className="text-sm font-bold text-red-700 hover:text-red-900 disabled:opacity-50"
+                      >
+                        Șterge
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
@@ -175,6 +220,15 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 <textarea
                   value={materialDescription}
                   onChange={(e) => setMaterialDescription(e.target.value)}
+                  className="mt-1 block w-full rounded border-gray-300 shadow-sm"
+                  rows={3}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700">Comentariu opțional</label>
+                <textarea
+                  value={materialComment}
+                  onChange={(e) => setMaterialComment(e.target.value)}
                   className="mt-1 block w-full rounded border-gray-300 shadow-sm"
                   rows={3}
                 />

@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
+import Material from '@/models/Material';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import cloudinary from '@/lib/cloudinary';
@@ -18,6 +19,7 @@ export async function POST(req, { params }) {
     const formData = await req.formData();
     const title = formData.get('title');
     const description = formData.get('description') || '';
+    const comment = formData.get('comment') || '';
     const file = formData.get('file');
 
     if (!title || !file || typeof file === 'string') {
@@ -28,10 +30,6 @@ export async function POST(req, { params }) {
     const course = await Course.findById(courseId);
     if (!course) {
       return NextResponse.json({ message: 'Cursul nu a fost găsit.' }, { status: 404 });
-    }
-
-    if (!course.materials) {
-      course.materials = [];
     }
 
     if (session.user.role !== 'Admin' && session.user.role !== 'Profesor') {
@@ -61,19 +59,73 @@ export async function POST(req, { params }) {
       uploadStream.end(buffer);
     });
 
-    course.materials.push({
+    // Creeaza Material document
+    const material = await Material.create({
+      course: courseId,
+      teacher: session.user.id,
       title,
       description,
+      comment,
       fileUrl: cloudinaryResult.secure_url,
+      fileName: file.name,
       uploadedAt: new Date(),
-      uploadedBy: session.user.id,
     });
 
-    await course.save();
-
-    return NextResponse.json({ message: 'Material încărcat cu succes.' }, { status: 201 });
+    return NextResponse.json({ message: 'Material încărcat cu succes.', material }, { status: 201 });
   } catch (error) {
     console.error('Eroare încărcare material:', error);
     return NextResponse.json({ message: 'Eroare internă la încărcare.' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req, { params }) {
+  try {
+    const session = await getServerSession(authOptions);
+    if (!session) {
+      return NextResponse.json({ message: 'Neautorizat.' }, { status: 401 });
+    }
+
+    const { courseId } = await params;
+    const { materialId } = await req.json();
+
+    if (!materialId) {
+      return NextResponse.json({ message: 'Material ID este obligatoriu.' }, { status: 400 });
+    }
+
+    await connectDB();
+    const material = await Material.findById(materialId);
+    if (!material) {
+      return NextResponse.json({ message: 'Materialul nu a fost găsit.' }, { status: 404 });
+    }
+
+    if (material.course.toString() !== courseId) {
+      return NextResponse.json({ message: 'Materialul nu aparține acestui curs.' }, { status: 400 });
+    }
+
+    if (session.user.role === 'Profesor' && material.teacher.toString() !== session.user.id) {
+      return NextResponse.json({ message: 'Nu poți șterge materialul altui profesor.' }, { status: 403 });
+    }
+
+    if (session.user.role !== 'Admin' && session.user.role !== 'Profesor') {
+      return NextResponse.json({ message: 'Nu ai permisiunea de a șterge materiale.' }, { status: 403 });
+    }
+
+    // Șterge din Cloudinary dacă URL-ul conține cloudinary
+    if (material.fileUrl && material.fileUrl.includes('cloudinary')) {
+      try {
+        const urlParts = material.fileUrl.split('/');
+        const publicId = `courses/${courseId}/materials/${urlParts[urlParts.length - 1].split('.')[0]}`;
+        await cloudinary.uploader.destroy(publicId);
+      } catch (error) {
+        console.error('Eroare ștergere din Cloudinary:', error);
+      }
+    }
+
+    await Material.findByIdAndDelete(materialId);
+
+    return NextResponse.json({ message: 'Material șters cu succes.' }, { status: 200 });
+  } catch (error) {
+    console.error('Eroare ștergere material:', error);
+    return NextResponse.json({ message: 'Eroare internă la ștergere.' }, { status: 500 });
   }
 }

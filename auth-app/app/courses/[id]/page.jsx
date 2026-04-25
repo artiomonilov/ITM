@@ -5,6 +5,7 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
 import Assignment from '@/models/Assignment';
+import Material from '@/models/Material';
 import User from '@/models/User';
 import CourseDetailClient from '@/app/components/CourseDetailClient';
 
@@ -34,16 +35,10 @@ export default async function CoursePage({ params }) {
     redirect('/dashboard');
   }
 
-  const userIds = [
-    ...(course.materials || []).map(item => item.uploadedBy?.toString()).filter(Boolean),
-  ];
-
-  const uniqueUserIds = [...new Set(userIds)];
-  const users = await User.find({ _id: { $in: uniqueUserIds } }).lean();
-  const userMap = users.reduce((acc, user) => {
-    acc[user._id.toString()] = `${user.nume} ${user.prenume}`;
-    return acc;
-  }, {});
+  // Fetch materials from Material collection
+  const materialsData = await Material.find({ course: id })
+    .populate('teacher', 'nume prenume')
+    .lean();
 
   // Fetch assignments from Assignment collection
   let assignmentsData = await Assignment.find({ course: id })
@@ -76,12 +71,16 @@ export default async function CoursePage({ params }) {
       prenume: student.prenume,
       email: student.email
     })),
-    materials: (course.materials || []).map(item => ({
+    materials: materialsData.map(item => ({
+      _id: item._id.toString(),
+      teacherId: item.teacher._id.toString(),
       title: item.title,
       description: item.description,
+      comment: item.comment,
       fileUrl: item.fileUrl,
+      fileName: item.fileName,
       uploadedAt: item.uploadedAt,
-      uploadedByName: item.uploadedBy ? userMap[item.uploadedBy.toString()] || 'Profesor' : 'Profesor'
+      uploadedByName: item.teacher ? `${item.teacher.nume} ${item.teacher.prenume}` : 'Profesor'
     })),
     assignments: assignments
   };
