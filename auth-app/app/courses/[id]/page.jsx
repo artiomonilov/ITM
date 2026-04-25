@@ -51,6 +51,7 @@ export default async function CoursePage({ params }) {
   }
 
   const assignments = assignmentsData.map(item => ({
+    _id: item._id.toString(),
     student: item.student?._id.toString(),
     studentName: item.student ? `${item.student.nume} ${item.student.prenume}` : null,
     fileUrl: item.fileUrl,

@@ -16,7 +16,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
   const handleMaterialUpload = async (event) => {
     event.preventDefault();
     if (!materialTitle || !materialFile) {
-      setMessage('Completează titlul și atașează un fișier.');
+      setMessage('Completeaza titlul si ataseaza un fisier.');
       return;
     }
 
@@ -37,14 +37,14 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
 
       const data = await res.json();
       if (res.ok) {
-        setMessage('Material adăugat cu succes.');
+        setMessage('Material adaugat cu succes.');
         setMaterialTitle('');
         setMaterialDescription('');
         setMaterialComment('');
         setMaterialFile(null);
         router.refresh();
       } else {
-        setMessage(data.message || 'Eroare la încărcare material.');
+        setMessage(data.message || 'Eroare la incarcare material.');
       }
     } catch (error) {
       console.error(error);
@@ -57,7 +57,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
   const handleAssignmentUpload = async (event) => {
     event.preventDefault();
     if (!assignmentFile) {
-      setMessage('Alege un fișier pentru temă.');
+      setMessage('Alege un fisier pentru tema.');
       return;
     }
 
@@ -76,12 +76,12 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
 
       const data = await res.json();
       if (res.ok) {
-        setMessage('Tema a fost încărcată cu succes.');
+        setMessage('Tema a fost incarcata cu succes.');
         setAssignmentFile(null);
         setAssignmentComment('');
         router.refresh();
       } else {
-        setMessage(data.message || 'Eroare la încărcarea temei.');
+        setMessage(data.message || 'Eroare la incarcarea temei.');
       }
     } catch (error) {
       console.error(error);
@@ -92,7 +92,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
   };
 
   const handleMaterialDelete = async (materialId) => {
-    if (!confirm('Ești sigur că vrei să ștergi acest material?')) {
+    if (!confirm('Esti sigur ca vrei sa stergi acest material?')) {
       return;
     }
 
@@ -108,10 +108,10 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
 
       const data = await res.json();
       if (res.ok) {
-        setMessage('Material șters cu succes.');
+        setMessage('Material sters cu succes.');
         router.refresh();
       } else {
-        setMessage(data.message || 'Eroare la ștergere.');
+        setMessage(data.message || 'Eroare la stergere.');
       }
     } catch (error) {
       console.error(error);
@@ -121,7 +121,50 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
     }
   };
 
-  const ownAssignment = course.assignments?.find(a => a.student === currentUserId);
+  const handleAssignmentDelete = async (assignmentId) => {
+    if (!confirm('Esti sigur ca vrei sa stergi aceasta tema?')) {
+      return;
+    }
+
+    setLoading(true);
+    setMessage('');
+
+    try {
+      const res = await fetch(`/api/courses/${courseId}/assignments`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ assignmentId }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setMessage('Tema a fost stearsa cu succes.');
+        router.refresh();
+      } else {
+        setMessage(data.message || 'Eroare la stergerea temei.');
+      }
+    } catch (error) {
+      console.error(error);
+      setMessage('Eroare la conexiune.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDownload = (fileUrl, fileName) => {
+    try {
+      const downloadUrl = `/api/download?url=${encodeURIComponent(fileUrl)}&name=${encodeURIComponent(fileName || 'download')}`;
+      const link = document.createElement('a');
+      link.href = downloadUrl;
+      link.download = fileName || 'download';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } catch (error) {
+      console.error('Eroare la descarcare:', error);
+      setMessage('Eroare la descarcare. Incearca mai tarziu.');
+    }
+  };
 
   return (
     <div className="space-y-8">
@@ -137,21 +180,21 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
           <p className="text-gray-700 mb-2"><strong>Nume:</strong> {course.name}</p>
           <p className="text-gray-700 mb-2"><strong>Descriere:</strong> {course.description}</p>
           <p className="text-gray-700 mb-2"><strong>Profesor:</strong> {course.teacherName}</p>
-          <p className="text-gray-700"><strong>Studenți înscriși:</strong> {course.studentsCount}</p>
+          <p className="text-gray-700"><strong>Studenti inscrisi:</strong> {course.studentsCount}</p>
         </div>
 
         <div className="bg-white rounded shadow p-6 border border-gray-200">
           <h2 className="text-2xl font-bold mb-3">Acces</h2>
           <p className="text-gray-700 mb-2">Rol curent: <span className="font-semibold">{currentUserRole}</span></p>
-          <p className="text-gray-700">{isEnrolled ? 'Ești înscris/ă la acest curs.' : 'Nu ești înscris/ă la acest curs.'}</p>
+          <p className="text-gray-700">{isEnrolled ? 'Esti inscris/a la acest curs.' : 'Nu esti inscris/a la acest curs.'}</p>
         </div>
       </div>
 
       {(currentUserRole === 'Profesor' || currentUserRole === 'Admin') && course.students && course.students.length > 0 && (
         <section className="bg-white rounded shadow p-6 border border-gray-200">
           <div className="mb-4 flex items-center justify-between gap-4">
-            <h2 className="text-2xl font-bold">Studenți înscriși</h2>
-            <span className="text-sm text-gray-500">{course.students.length} studenți</span>
+            <h2 className="text-2xl font-bold">Studenti inscrisi</h2>
+            <span className="text-sm text-gray-500">{course.students.length} studenti</span>
           </div>
           <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
             {course.students.map((student) => (
@@ -172,7 +215,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
           </div>
 
           {course.materials.length === 0 ? (
-            <p className="text-gray-500">Momentan nu există materiale încărcate.</p>
+            <p className="text-gray-500">Momentan nu exista materiale incarcate.</p>
           ) : (
             <div className="space-y-3">
               {course.materials.map((material) => (
@@ -181,20 +224,24 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                   {material.description && <p className="text-sm text-gray-600 mb-2">{material.description}</p>}
                   {material.comment && <p className="text-sm text-gray-600 mb-2 italic">Comentariu: {material.comment}</p>}
                   <div className="flex flex-wrap gap-2 text-sm text-gray-600">
-                    <span>Încarcat: {new Date(material.uploadedAt).toLocaleString('ro-RO')}</span>
+                    <span>Incarcat: {new Date(material.uploadedAt).toLocaleString('ro-RO')}</span>
                     <span>de: {material.uploadedByName || 'Profesor'}</span>
                   </div>
                   <div className="flex gap-3 mt-3">
-                    <a href={material.fileUrl} target="_blank" rel="noreferrer" className="inline-block text-sm font-bold text-blue-700 hover:underline">
-                      Descarcă material
-                    </a>
+                    <button
+                      onClick={() => handleDownload(material.fileUrl, material.fileName)}
+                      className="text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+                      disabled={loading}
+                    >
+                      Descarca material
+                    </button>
                     {(currentUserRole === 'Admin' || (currentUserRole === 'Profesor' && material.teacherId === currentUserId)) && (
                       <button
                         onClick={() => handleMaterialDelete(material._id)}
                         disabled={loading}
                         className="text-sm font-bold text-red-700 hover:text-red-900 disabled:opacity-50"
                       >
-                        Șterge
+                        Sterge
                       </button>
                     )}
                   </div>
@@ -205,7 +252,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
 
           {isTeacher && (
             <form onSubmit={handleMaterialUpload} className="mt-6 space-y-4">
-              <h3 className="text-xl font-semibold">Încarcă material nou</h3>
+              <h3 className="text-xl font-semibold">Incarca material nou</h3>
               <div>
                 <label className="block text-sm font-medium text-gray-700">Titlu material</label>
                 <input
@@ -225,7 +272,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Comentariu opțional</label>
+                <label className="block text-sm font-medium text-gray-700">Comentariu optional</label>
                 <textarea
                   value={materialComment}
                   onChange={(e) => setMaterialComment(e.target.value)}
@@ -234,7 +281,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700">Fișier</label>
+                <label className="block text-sm font-medium text-gray-700">Fisier</label>
                 <input
                   type="file"
                   onChange={(e) => setMaterialFile(e.target.files?.[0] || null)}
@@ -243,7 +290,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 />
               </div>
               <button type="submit" disabled={loading} className="inline-flex items-center justify-center rounded bg-blue-600 px-4 py-2 text-white hover:bg-blue-700 disabled:opacity-50">
-                {loading ? 'Se încarcă...' : 'Încarcă material'}
+                {loading ? 'Se incarca...' : 'Incarca material'}
               </button>
             </form>
           )}
@@ -259,7 +306,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
             <>
               <form onSubmit={handleAssignmentUpload} className="space-y-4 mb-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Atașează tema</label>
+                  <label className="block text-sm font-medium text-gray-700">Ataseaza tema</label>
                   <input
                     type="file"
                     onChange={(e) => setAssignmentFile(e.target.files?.[0] || null)}
@@ -268,7 +315,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700">Comentariu opțional</label>
+                  <label className="block text-sm font-medium text-gray-700">Comentariu optional</label>
                   <textarea
                     value={assignmentComment}
                     onChange={(e) => setAssignmentComment(e.target.value)}
@@ -277,26 +324,30 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                   />
                 </div>
                 <button type="submit" disabled={loading || !isEnrolled} className="inline-flex items-center justify-center rounded bg-green-600 px-4 py-2 text-white hover:bg-green-700 disabled:opacity-50">
-                  {loading ? 'Se încarcă...' : 'Încarcă tema'}
+                  {loading ? 'Se incarca...' : 'Incarca tema'}
                 </button>
               </form>
 
               {!isEnrolled && (
-                <p className="text-sm text-red-600">Trebuie să fii înscris/ă la curs pentru a încărca tema.</p>
+                <p className="text-sm text-red-600">Trebuie sa fii inscris/a la curs pentru a incarca tema.</p>
               )}
 
               <div className="space-y-3">
                 {course.assignments.length === 0 ? (
-                  <p className="text-gray-500">Nu ai încărcat nici o temă.</p>
+                  <p className="text-gray-500">Nu ai incarcat nicio tema.</p>
                 ) : (
                   course.assignments.map((assignment) => (
                     <div key={assignment.fileUrl} className="border rounded p-4 bg-slate-50">
-                      <p className="font-semibold">Fișier: {assignment.fileName}</p>
+                      <p className="font-semibold">Fisier: {assignment.fileName}</p>
                       <p className="text-sm text-gray-600">Trimis la: {new Date(assignment.submittedAt).toLocaleString('ro-RO')}</p>
                       {assignment.comment && <p className="text-sm text-gray-600">Comentariu: {assignment.comment}</p>}
-                      <a href={assignment.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline">
-                        Descarcă fișier
-                      </a>
+                      <button
+                        onClick={() => handleDownload(assignment.fileUrl, assignment.fileName)}
+                        className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Descarca fisier
+                      </button>
                     </div>
                   ))
                 )}
@@ -305,17 +356,30 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
           ) : (
             <div className="space-y-3">
               {course.assignments.length === 0 ? (
-                <p className="text-gray-500">Nicio temă trimisă încă.</p>
+                <p className="text-gray-500">Nicio tema trimisa inca.</p>
               ) : (
                 course.assignments.map((assignment) => (
                   <div key={`${assignment.student}-${assignment.fileUrl}`} className="border rounded p-4 bg-slate-50">
                     <p className="font-semibold">Student: {assignment.studentName || 'Student'}</p>
-                    <p className="text-sm text-gray-600">Fișier: {assignment.fileName}</p>
+                    <p className="text-sm text-gray-600">Fisier: {assignment.fileName}</p>
                     <p className="text-sm text-gray-600">Trimis la: {new Date(assignment.submittedAt).toLocaleString('ro-RO')}</p>
                     {assignment.comment && <p className="text-sm text-gray-600">Comentariu: {assignment.comment}</p>}
-                    <a href={assignment.fileUrl} target="_blank" rel="noreferrer" className="inline-block mt-3 text-sm font-bold text-blue-700 hover:underline">
-                      Descarcă tema
-                    </a>
+                    <div className="mt-3 flex gap-3">
+                      <button
+                        onClick={() => handleDownload(assignment.fileUrl, assignment.fileName)}
+                        className="text-sm font-bold text-blue-700 hover:underline disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Descarca tema
+                      </button>
+                      <button
+                        onClick={() => handleAssignmentDelete(assignment._id)}
+                        className="text-sm font-bold text-red-700 hover:text-red-900 disabled:opacity-50"
+                        disabled={loading}
+                      >
+                        Sterge
+                      </button>
+                    </div>
                   </div>
                 ))
               )}

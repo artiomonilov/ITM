@@ -44,12 +44,21 @@ export async function POST(req, { params }) {
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
 
+    // Extrage filename fără extensie
+    const fileNameWithoutExt = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+    const sanitizedName = fileNameWithoutExt.replace(/[^a-zA-Z0-9._-]/g, '_');
+    
+    // Detectează tipul de fișier
+    const fileExt = file.name.substring(file.name.lastIndexOf('.')).toLowerCase();
+    const isDocument = ['.pdf', '.docx', '.doc', '.xlsx', '.xls', '.pptx', '.ppt', '.txt', '.rtf'].includes(fileExt);
+    const resourceType = isDocument ? 'raw' : 'auto';
+
     const cloudinaryResult = await new Promise((resolve, reject) => {
       const uploadStream = cloudinary.uploader.upload_stream(
         {
-          resource_type: 'auto',
+          resource_type: resourceType,
           folder: `courses/${courseId}/materials`,
-          public_id: `${Date.now()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, '_')}`,
+          public_id: `${Date.now()}-${sanitizedName}`,
         },
         (error, result) => {
           if (error) reject(error);
