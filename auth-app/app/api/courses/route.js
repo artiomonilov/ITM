@@ -1,12 +1,42 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
-import ResourceRequest from '@/models/ResourceRequest';
+import Resource from '@/models/Resource';
+import ResourceInventory from '@/models/ResourceInventory';
 import User from '@/models/User';
-import { sendCourseAssignmentEmail } from '@/lib/mailer';
+import { sendCourseAssignmentEmail, sendSubscriptionCredentialsEmail } from '@/lib/mailer';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { logAuditEvent } from '@/lib/audit';
+import { createSubscriptionCredentialSet } from '@/lib/resourceService';
+
+async function calculateAllocatedResources() {
+  const allocations = await Resource.aggregate([
+    {
+      $group: {
+        _id: '$type',
+        total: { $sum: '$quantity' },
+      },
+    },
+  ]);
+
+  return allocations.reduce((summary, entry) => ({
+    ...summary,
+    [entry._id]: entry.total,
+  }), { TOKEN: 0, SUBSCRIPTION: 0 });
+}
+
+function normalizeStudentIds(students) {
+  if (!Array.isArray(students)) {
+    return [];
+  }
+
+  return [...new Set(
+    students
+      .map((studentId) => studentId?.toString().trim())
+      .filter(Boolean),
+  )];
+}
 
 export async function POST(req) {
   try {
@@ -24,10 +54,26 @@ export async function POST(req) {
     await connectDB();
 
     const courseDestination = destination === 'PROFESSOR' ? 'PROFESSOR' : 'STUDENT';
-    const assignedStudents = courseDestination === 'STUDENT' ? (students || []) : [];
+    const requestedStudentIds = courseDestination === 'STUDENT' ? normalizeStudentIds(students) : [];
+    let assignedStudentsUsers = [];
+
+    if (courseDestination === 'STUDENT' && requestedStudentIds.length > 0) {
+      assignedStudentsUsers = await User.find({
+        _id: { $in: requestedStudentIds },
+        role: 'Student',
+      }).select('nume prenume email role');
+
+      if (assignedStudentsUsers.length !== requestedStudentIds.length) {
+        return NextResponse.json({
+          message: 'Unii utilizatori selectati nu mai exista sau nu au rol de student.',
+        }, { status: 400 });
+      }
+    }
+
+    const assignedStudents = assignedStudentsUsers.map((student) => student._id);
     const assignedStudentsCount = assignedStudents.length;
     const maxStudentsValue = courseDestination === 'STUDENT'
-      ? Math.max(Number(maxStudents) || 0, assignedStudents.length)
+      ? Math.max(Number(maxStudents) || 0, assignedStudentsCount)
       : 0;
     const tokenPerStudentValue = courseDestination === 'STUDENT' ? Math.max(0, Number(tokenPerStudent) || 0) : 0;
     const subscriptionPerStudentValue = courseDestination === 'STUDENT' ? Math.max(0, Number(subscriptionPerStudent) || 0) : 0;
@@ -35,6 +81,30 @@ export async function POST(req) {
     const subscriptionTotalRequested = assignedStudentsCount * subscriptionPerStudentValue;
     const tokenExtraAllowance = Math.ceil(tokenTotalRequested * 0.1);
     const subscriptionExtraAllowance = Math.ceil(subscriptionTotalRequested * 0.1);
+
+    if (courseDestination === 'STUDENT' && assignedStudentsCount > 0) {
+      const [inventory, allocatedResources] = await Promise.all([
+        ResourceInventory.findOne(),
+        calculateAllocatedResources(),
+      ]);
+
+      const totalTokensInventory = inventory?.totalTokens || 0;
+      const totalSubscriptionsInventory = inventory?.totalSubscriptions || 0;
+      const remainingTokens = totalTokensInventory - allocatedResources.TOKEN;
+      const remainingSubscriptions = totalSubscriptionsInventory - allocatedResources.SUBSCRIPTION;
+
+      if (remainingTokens < tokenTotalRequested) {
+        return NextResponse.json({
+          message: `Nu exista suficiente tokenuri disponibile. Necesare: ${tokenTotalRequested}, disponibile: ${Math.max(0, remainingTokens)}.`,
+        }, { status: 400 });
+      }
+
+      if (remainingSubscriptions < subscriptionTotalRequested) {
+        return NextResponse.json({
+          message: `Nu exista suficiente abonamente disponibile. Necesare: ${subscriptionTotalRequested}, disponibile: ${Math.max(0, remainingSubscriptions)}.`,
+        }, { status: 400 });
+      }
+    }
 
     const newCourse = await Course.create({
       name,
@@ -53,39 +123,68 @@ export async function POST(req) {
       },
     });
 
-    const resourceRequests = [];
-    if (courseDestination === 'STUDENT' && tokenTotalRequested > 0) {
-      resourceRequests.push({
-        professorId: session.user.id,
-        courseId: newCourse._id,
-        type: 'TOKEN',
-        quantity: tokenTotalRequested,
-        scope: 'COURSE_SETUP',
-        reason: `Necesar initial pentru curs (${tokenPerStudentValue} tokenuri/student x ${assignedStudentsCount} studenti atribuiti). Supliment profesor: ${tokenExtraAllowance}.`,
-      });
-    }
-
-    if (courseDestination === 'STUDENT' && subscriptionTotalRequested > 0) {
-      resourceRequests.push({
-        professorId: session.user.id,
-        courseId: newCourse._id,
-        type: 'SUBSCRIPTION',
-        quantity: subscriptionTotalRequested,
-        scope: 'COURSE_SETUP',
-        reason: `Necesar initial pentru curs (${subscriptionPerStudentValue} abonamente/student x ${assignedStudentsCount} studenti atribuiti). Supliment profesor: ${subscriptionExtraAllowance}.`,
-      });
-    }
-
-    if (resourceRequests.length > 0) {
-      await ResourceRequest.insertMany(resourceRequests);
-    }
-
     if (courseDestination === 'STUDENT' && assignedStudents.length > 0) {
       const teacherName = `${session.user.nume} ${session.user.prenume}`;
-      const assignedStudentsUsers = await User.find({ _id: { $in: assignedStudents } });
+      const resourceEntries = [];
+      const subscriptionCredentials = [];
+      const courseSlug = newCourse.name.toLowerCase().replace(/\s+/g, '-');
 
-      for (const student of assignedStudentsUsers) {
-        sendCourseAssignmentEmail(student.email, name, teacherName);
+      if (tokenPerStudentValue > 0) {
+        resourceEntries.push(
+          ...assignedStudents.map((studentId) => ({
+            studentId,
+            profId: session.user.id,
+            courseId: newCourse._id,
+            type: 'TOKEN',
+            quantity: tokenPerStudentValue,
+            allocationScope: 'COURSE',
+          }))
+        );
+      }
+
+      if (subscriptionPerStudentValue > 0) {
+        for (const student of assignedStudentsUsers) {
+          for (let index = 0; index < subscriptionPerStudentValue; index += 1) {
+            const credential = await createSubscriptionCredentialSet(
+              `${courseSlug}-${student._id.toString()}-${index + 1}`,
+            );
+
+            subscriptionCredentials.push({
+              studentName: `${student.nume} ${student.prenume}`,
+              ...credential,
+            });
+
+            resourceEntries.push({
+              studentId: student._id,
+              profId: session.user.id,
+              courseId: newCourse._id,
+              type: 'SUBSCRIPTION',
+              quantity: 1,
+              allocationScope: 'COURSE',
+              credentials: credential,
+            });
+          }
+        }
+      }
+
+      if (resourceEntries.length > 0) {
+        await Resource.insertMany(resourceEntries);
+      }
+
+      await Promise.allSettled(
+        assignedStudentsUsers.map((student) => sendCourseAssignmentEmail(student.email, name, teacherName))
+      );
+
+      if (subscriptionCredentials.length > 0) {
+        await sendSubscriptionCredentialsEmail(
+          session.user.email,
+          teacherName,
+          newCourse.name,
+          subscriptionCredentials.map(({ studentName, ...credential }) => ({
+            ...credential,
+            username: `${credential.username} (${studentName})`,
+          })),
+        );
       }
     }
 
@@ -97,7 +196,7 @@ export async function POST(req) {
       targetType: 'Course',
       targetId: newCourse._id.toString(),
       targetLabel: newCourse.name,
-      details: 'Curs creat cu cereri initiale de resurse.',
+      details: 'Curs creat cu alocare directa de resurse pentru studentii atribuiti.',
       status: 'SUCCESS',
       metadata: {
         maxStudents: maxStudentsValue,
@@ -106,24 +205,17 @@ export async function POST(req) {
       },
     });
 
-    await logAuditEvent({
-      actorId: session.user.id,
-      actorEmail: session.user.email,
-      actorRole: session.user.role,
-      action: 'CREATE_COURSE',
-      targetType: 'Course',
-      targetId: newCourse._id.toString(),
-      targetLabel: newCourse.name,
-      details: 'Curs creat cu cereri initiale de resurse.',
-      status: 'SUCCESS',
-      metadata: {
-        maxStudents: maxStudentsValue,
-        tokenTotalRequested,
-        subscriptionTotalRequested,
+    return NextResponse.json({
+      message: 'Curs creat cu succes!',
+      courseId: newCourse._id.toString(),
+      allocationSummary: {
+        assignedStudentsCount,
+        tokenPerStudent: tokenPerStudentValue,
+        subscriptionPerStudent: subscriptionPerStudentValue,
+        totalAllocatedTokens: tokenTotalRequested,
+        totalAllocatedSubscriptions: subscriptionTotalRequested,
       },
-    });
-
-    return NextResponse.json({ message: 'Curs creat cu succes!' }, { status: 201 });
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating course:', error);
     return NextResponse.json({ message: 'Eroare la crearea cursului.' }, { status: 500 });

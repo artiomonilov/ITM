@@ -101,9 +101,10 @@ export default function CreateCoursePage() {
 
       const data = await res.json();
       if (res.ok) {
+        const allocationSummary = data.allocationSummary;
         setMessage(
           destination === 'STUDENT'
-            ? 'Curs creat cu succes! Studentii au fost notificati pe e-mail, iar cererile de resurse au fost trimise catre administrator.'
+            ? `Curs creat cu succes! ${allocationSummary?.assignedStudentsCount || 0} studenti au primit ${allocationSummary?.totalAllocatedTokens || 0} tokenuri si ${allocationSummary?.totalAllocatedSubscriptions || 0} abonamente.`
             : 'Curs pentru profesori creat cu succes.'
         );
         setName('');
@@ -226,8 +227,7 @@ export default function CreateCoursePage() {
               </div>
 
               <div className="mb-6 rounded border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                Total solicitat catre administrator pentru studentii atribuiti: <strong>{totalTokens}</strong> tokenuri si <strong>{totalSubscriptions}</strong> abonamente.
-                Supliment profesor (10%): <strong>{Math.ceil(totalTokens * 0.1)}</strong> tokenuri si <strong>{Math.ceil(totalSubscriptions * 0.1)}</strong> abonamente.
+                Total care va fi alocat studentilor atribuiti imediat dupa creare: <strong>{totalTokens}</strong> tokenuri si <strong>{totalSubscriptions}</strong> abonamente.
               </div>
 
               <div className="mb-6">
