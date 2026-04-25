@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
+import ResourceRequest from '@/models/ResourceRequest';
 import User from '@/models/User';
 import { sendCourseAssignmentEmail } from '@/lib/mailer';
 import { getServerSession } from 'next-auth';
@@ -13,7 +14,7 @@ export async function POST(req) {
       return NextResponse.json({ message: "Nu ai permisiuni pentru a crea cursuri." }, { status: 403 });
     }
 
-    const { name, description, students } = await req.json();
+    const { name, description, students, maxStudents, tokenPerStudent, subscriptionPerStudent } = await req.json();
 
     if (!name || !description) {
       return NextResponse.json({ message: "Numele și descrierea cursului sunt obligatorii." }, { status: 400 });
@@ -21,12 +22,56 @@ export async function POST(req) {
 
     await connectDB();
 
+    const maxStudentsValue = Math.max(Number(maxStudents) || 0, (students || []).length);
+    const tokenPerStudentValue = Math.max(0, Number(tokenPerStudent) || 0);
+    const subscriptionPerStudentValue = Math.max(0, Number(subscriptionPerStudent) || 0);
+    const tokenTotalRequested = maxStudentsValue * tokenPerStudentValue;
+    const subscriptionTotalRequested = maxStudentsValue * subscriptionPerStudentValue;
+    const tokenExtraAllowance = Math.ceil(tokenTotalRequested * 0.1);
+    const subscriptionExtraAllowance = Math.ceil(subscriptionTotalRequested * 0.1);
+
     const newCourse = await Course.create({
       name,
       description,
       teacher: session.user.id,
-      students: students || []
+      students: students || [],
+      maxStudents: maxStudentsValue,
+      resourceRequirements: {
+        tokenPerStudent: tokenPerStudentValue,
+        subscriptionPerStudent: subscriptionPerStudentValue,
+        tokenTotalRequested,
+        subscriptionTotalRequested,
+        tokenExtraAllowance,
+        subscriptionExtraAllowance,
+      },
     });
+
+    const resourceRequests = [];
+    if (tokenTotalRequested > 0) {
+      resourceRequests.push({
+        professorId: session.user.id,
+        courseId: newCourse._id,
+        type: 'TOKEN',
+        quantity: tokenTotalRequested,
+        scope: 'COURSE_SETUP',
+        reason: `Necesar inițial pentru curs (${tokenPerStudentValue} tokenuri/student x ${maxStudentsValue} studenți). Supliment profesor: ${tokenExtraAllowance}.`,
+      });
+    }
+
+    if (subscriptionTotalRequested > 0) {
+      resourceRequests.push({
+        professorId: session.user.id,
+        courseId: newCourse._id,
+        type: 'SUBSCRIPTION',
+        quantity: subscriptionTotalRequested,
+        scope: 'COURSE_SETUP',
+        reason: `Necesar inițial pentru curs (${subscriptionPerStudentValue} abonamente/student x ${maxStudentsValue} studenți). Supliment profesor: ${subscriptionExtraAllowance}.`,
+      });
+    }
+
+    if (resourceRequests.length > 0) {
+      await ResourceRequest.insertMany(resourceRequests);
+    }
 
     // Send emails to assigned students
     if (students && students.length > 0) {

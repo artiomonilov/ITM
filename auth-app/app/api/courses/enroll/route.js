@@ -30,6 +30,10 @@ export async function POST(req) {
       return NextResponse.json({ message: "Ești deja înscris la acest curs." }, { status: 400 });
     }
 
+    if (course.maxStudents > 0 && course.students.length >= course.maxStudents) {
+      return NextResponse.json({ message: "Cursul a atins numărul maxim de studenți." }, { status: 400 });
+    }
+
     // Adăugăm studentul
     course.students.push(session.user.id);
     await course.save();

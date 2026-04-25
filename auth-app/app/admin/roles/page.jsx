@@ -13,19 +13,7 @@ export default function AdminRolesPage() {
   const router = useRouter();
   const validRoles = ['Student', 'Profesor', 'Admin', 'Audit'];
 
-  useEffect(() => {
-    async function checkAuthAndLoad() {
-      const session = await getSession();
-      if (!session || session.user.role !== 'Admin') {
-        router.push('/dashboard');
-      } else {
-        loadUsers();
-      }
-    }
-    checkAuthAndLoad();
-  }, [router]);
-
-  const loadUsers = async () => {
+  async function loadUsers() {
     const res = await fetch('/api/admin/roles');
     if (res.ok) {
         const data = await res.json();
@@ -37,7 +25,19 @@ export default function AdminRolesPage() {
         });
         setEditDetails(initialEdits);
     }
-  };
+  }
+
+  useEffect(() => {
+    async function checkAuthAndLoad() {
+      const session = await getSession();
+      if (!session || session.user.role !== 'Admin') {
+        router.push('/dashboard');
+      } else {
+        loadUsers();
+      }
+    }
+    checkAuthAndLoad();
+  }, [router]);
 
   const handleRoleChange = async (targetUserEmail, newRole) => {
     const res = await fetch('/api/admin/roles', {
@@ -89,7 +89,11 @@ export default function AdminRolesPage() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-8 text-black">
       <div className="bg-white rounded shadow-md w-full max-w-6xl p-8">
         <h1 className="text-3xl font-bold mb-4">Panou de Administrare</h1>
-        <a href="/dashboard" className="text-blue-500 hover:underline mb-4 block">Înapoi la Dashboard</a>
+        <div className="mb-4 flex gap-4 text-sm font-semibold">
+          <a href="/dashboard" className="text-blue-500 hover:underline">Înapoi la Dashboard</a>
+          <a href="/admin/activities" className="text-blue-500 hover:underline">Gestionează activități</a>
+          <a href="/admin/resources" className="text-blue-500 hover:underline">Gestionează resurse</a>
+        </div>
         
         {message && <p className="mb-4 text-green-600 font-bold bg-green-50 p-2 border border-green-200">{message}</p>}
         

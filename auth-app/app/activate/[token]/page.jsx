@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState, use } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export default function ActivateAccountPage({ params }) {
@@ -10,31 +11,45 @@ export default function ActivateAccountPage({ params }) {
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
-    if (token) {
-      activateAccount();
+    if (!token) {
+      return undefined;
     }
-  }, [token]);
 
-  const activateAccount = async () => {
-    try {
-      const res = await fetch(`/api/activate/confirm`, { 
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token })
-      });
-      const data = await res.json();
-      
-      if (res.ok) {
-        setSuccess(true);
-        setMessage("Cont activat cu succes! Te redirecționăm la login...");
-        setTimeout(() => router.push('/login'), 4000);
-      } else {
-        setMessage(data.message || "Eroare la activare. Token invalid sau expirat.");
+    let cancelled = false;
+
+    async function runActivation() {
+      try {
+        const res = await fetch(`/api/activate/confirm`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token })
+        });
+        const data = await res.json();
+
+        if (cancelled) {
+          return;
+        }
+
+        if (res.ok) {
+          setSuccess(true);
+          setMessage("Cont activat cu succes! Te redirecționăm la login...");
+          setTimeout(() => router.push('/login'), 4000);
+        } else {
+          setMessage(data.message || "Eroare la activare. Token invalid sau expirat.");
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setMessage("A apărut o eroare la server.");
+        }
       }
-    } catch (error) {
-      setMessage("A apărut o eroare la server.");
     }
-  };
+
+    runActivation();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, token]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 text-black">
@@ -44,9 +59,9 @@ export default function ActivateAccountPage({ params }) {
           {message}
         </div>
         {!success && (
-            <a href="/login" className="text-blue-500 text-sm mt-6 block hover:underline">
+            <Link href="/login" className="text-blue-500 text-sm mt-6 block hover:underline">
                Du-mă la login manual
-            </a>
+            </Link>
         )}
       </div>
     </div>

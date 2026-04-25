@@ -1,0 +1,227 @@
+import { NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/app/api/auth/[...nextauth]/route';
+import { connectDB } from '@/lib/mongodb';
+import Course from '@/models/Course';
+import Resource from '@/models/Resource';
+import ResourceInventory from '@/models/ResourceInventory';
+import ResourceRequest from '@/models/ResourceRequest';
+import User from '@/models/User';
+import { createSubscriptionCredentialSet } from '@/lib/resourceService';
+import { sendSubscriptionCredentialsEmail } from '@/lib/mailer';
+
+async function requireAdmin() {
+  const session = await getServerSession(authOptions);
+  if (!session || session.user.role !== 'Admin') {
+    return null;
+  }
+
+  return session;
+}
+
+async function getOrCreateInventory() {
+  let inventory = await ResourceInventory.findOne();
+  if (!inventory) {
+    inventory = await ResourceInventory.create({ totalTokens: 0, totalSubscriptions: 0 });
+  }
+
+  return inventory;
+}
+
+async function calculateUsage() {
+  const allocations = await Resource.aggregate([
+    {
+      $group: {
+        _id: '$type',
+        total: { $sum: '$quantity' },
+      },
+    },
+  ]);
+
+  const summary = {
+    TOKEN: 0,
+    SUBSCRIPTION: 0,
+  };
+
+  allocations.forEach((entry) => {
+    summary[entry._id] = entry.total;
+  });
+
+  return summary;
+}
+
+async function buildResponse() {
+  const inventory = await getOrCreateInventory();
+  const usage = await calculateUsage();
+  const requests = await ResourceRequest.find()
+    .populate('professorId', 'nume prenume email')
+    .populate('studentId', 'nume prenume email')
+    .populate('courseId', 'name maxStudents resourceRequirements')
+    .sort({ createdAt: -1 });
+
+  const courses = await Course.find()
+    .populate('teacher', 'nume prenume email')
+    .populate('students', 'nume prenume email')
+    .sort({ createdAt: -1 });
+
+  const professors = await User.find({ role: 'Profesor' }).select('nume prenume email');
+
+  return {
+    inventory,
+    usage,
+    requests,
+    courses,
+    professors,
+  };
+}
+
+export async function GET() {
+  const session = await requireAdmin();
+  if (!session) {
+    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
+  }
+
+  await connectDB();
+  return NextResponse.json(await buildResponse());
+}
+
+export async function POST(req) {
+  const session = await requireAdmin();
+  if (!session) {
+    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
+  }
+
+  await connectDB();
+  const payload = await req.json();
+
+  if (payload.action === 'updateTotals') {
+    const inventory = await getOrCreateInventory();
+    inventory.totalTokens = Math.max(0, Number(payload.totalTokens) || 0);
+    inventory.totalSubscriptions = Math.max(0, Number(payload.totalSubscriptions) || 0);
+    await inventory.save();
+
+    return NextResponse.json({
+      message: 'Inventarul universității a fost actualizat.',
+      data: await buildResponse(),
+    });
+  }
+
+  if (payload.action === 'forwardExtraRequest') {
+    const { courseId, professorId, studentId, type, quantity, reason } = payload;
+    if (!courseId || !professorId || !type || !quantity) {
+      return NextResponse.json({ message: 'Date insuficiente pentru cererea suplimentară.' }, { status: 400 });
+    }
+
+    const request = await ResourceRequest.create({
+      courseId,
+      professorId,
+      studentId: studentId || null,
+      type,
+      quantity: Number(quantity),
+      scope: 'EXTRA_STUDENT',
+      reason: reason || 'Cerere suplimentară înaintată de profesor către administrator.',
+    });
+
+    return NextResponse.json({
+      message: 'Cererea suplimentară a fost înregistrată.',
+      request,
+      data: await buildResponse(),
+    }, { status: 201 });
+  }
+
+  return NextResponse.json({ message: 'Acțiune necunoscută.' }, { status: 400 });
+}
+
+export async function PUT(req) {
+  const session = await requireAdmin();
+  if (!session) {
+    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
+  }
+
+  await connectDB();
+  const { requestId, decision } = await req.json();
+  const request = await ResourceRequest.findById(requestId)
+    .populate('professorId', 'nume prenume email')
+    .populate('courseId', 'name');
+
+  if (!request) {
+    return NextResponse.json({ message: 'Cererea nu a fost găsită.' }, { status: 404 });
+  }
+
+  if (request.status !== 'PENDING') {
+    return NextResponse.json({ message: 'Cererea a fost deja procesată.' }, { status: 400 });
+  }
+
+  if (decision === 'REJECTED') {
+    request.status = 'REJECTED';
+    request.rejectedAt = new Date();
+    await request.save();
+
+    return NextResponse.json({
+      message: 'Cererea a fost respinsă.',
+      data: await buildResponse(),
+    });
+  }
+
+  if (decision !== 'APPROVED') {
+    return NextResponse.json({ message: 'Decizie invalidă.' }, { status: 400 });
+  }
+
+  const inventory = await getOrCreateInventory();
+  const usage = await calculateUsage();
+
+  if (request.type === 'TOKEN') {
+    const remainingTokens = inventory.totalTokens - usage.TOKEN;
+    if (remainingTokens < request.quantity) {
+      return NextResponse.json({ message: 'Nu există suficiente tokenuri disponibile pentru aprobare.' }, { status: 400 });
+    }
+
+    await Resource.create({
+      profId: request.professorId._id,
+      courseId: request.courseId._id,
+      type: 'TOKEN',
+      quantity: request.quantity,
+      allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
+    });
+  }
+
+  if (request.type === 'SUBSCRIPTION') {
+    const remainingSubscriptions = inventory.totalSubscriptions - usage.SUBSCRIPTION;
+    if (remainingSubscriptions < request.quantity) {
+      return NextResponse.json({ message: 'Nu există suficiente abonamente disponibile pentru aprobare.' }, { status: 400 });
+    }
+
+    const credentials = [];
+    for (let index = 0; index < request.quantity; index += 1) {
+      const credential = await createSubscriptionCredentialSet(
+        `${request.courseId.name.toLowerCase().replace(/\s+/g, '-')}-${index + 1}`,
+      );
+      credentials.push(credential);
+
+      await Resource.create({
+        profId: request.professorId._id,
+        courseId: request.courseId._id,
+        type: 'SUBSCRIPTION',
+        quantity: 1,
+        allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
+        credentials: credential,
+      });
+    }
+
+    await sendSubscriptionCredentialsEmail(
+      request.professorId.email,
+      `${request.professorId.nume} ${request.professorId.prenume}`,
+      request.courseId.name,
+      credentials,
+    );
+  }
+
+  request.status = 'APPROVED';
+  request.approvedAt = new Date();
+  await request.save();
+
+  return NextResponse.json({
+    message: 'Cererea a fost aprobată.',
+    data: await buildResponse(),
+  });
+}

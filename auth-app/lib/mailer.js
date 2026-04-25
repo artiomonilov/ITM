@@ -1,16 +1,17 @@
 import nodemailer from 'nodemailer';
 
+const createTransporter = () => nodemailer.createTransport({
+  host: process.env.SMTP_HOST || 'smtp.gmail.com',
+  port: parseInt(process.env.SMTP_PORT) || 465,
+  secure: true,
+  auth: {
+    user: process.env.SMTP_USER,
+    pass: process.env.SMTP_PASS,
+  }
+});
+
 export const sendResetEmail = async (email, resetUrl) => {
-  // Configurare SMTP (acestea trebuie să le treci în fișierul .env)
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true, // true for 465, false for other ports
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    }
-  });
+  const transporter = createTransporter();
 
   const mailOptions = {
     from: `"Platfroma De Login" <${process.env.SMTP_USER}>`,
@@ -36,15 +37,7 @@ export const sendResetEmail = async (email, resetUrl) => {
 };
 
 export const sendActivationEmail = async (email, activationUrl) => {
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    }
-  });
+  const transporter = createTransporter();
 
   const mailOptions = {
     from: `"Platfroma De Login" <${process.env.SMTP_USER}>`,
@@ -70,15 +63,7 @@ export const sendActivationEmail = async (email, activationUrl) => {
 };
 
 export const sendCourseAssignmentEmail = async (email, courseName, teacherName) => {
-  const transporter = nodemailer.createTransport({
-    host: process.env.SMTP_HOST || 'smtp.gmail.com',
-    port: parseInt(process.env.SMTP_PORT) || 465,
-    secure: true,
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    }
-  });
+  const transporter = createTransporter();
 
   const mailOptions = {
     from: `"Platfroma De Login" <${process.env.SMTP_USER}>`,
@@ -103,4 +88,37 @@ export const sendCourseAssignmentEmail = async (email, courseName, teacherName) 
   }
 };
 
+export const sendSubscriptionCredentialsEmail = async (email, teacherName, courseName, credentialsList) => {
+  const transporter = createTransporter();
+
+  const credentialsMarkup = credentialsList.map((entry, index) => `
+    <li style="margin-bottom: 10px;">
+      <strong>Abonament ${index + 1}</strong><br/>
+      Username: <code>${entry.username}</code><br/>
+      Password: <code>${entry.password}</code><br/>
+      VPS IP: <code>${entry.ip}</code>
+    </li>
+  `).join('');
+
+  const mailOptions = {
+    from: `"Platfroma De Login" <${process.env.SMTP_USER}>`,
+    to: email,
+    subject: `Credențiale abonamente pentru cursul ${courseName}`,
+    html: `
+      <h2>Resurse aprobate pentru profesor</h2>
+      <p>Salut, <strong>${teacherName}</strong>!</p>
+      <p>Administratorul a aprobat abonamentele VPS pentru cursul <strong>${courseName}</strong>.</p>
+      <p>Mai jos găsești credențialele generate automat din resourceService, pe care le poți distribui studenților în timpul laboratoarelor:</p>
+      <ol>${credentialsMarkup}</ol>
+    `,
+  };
+
+  try {
+    await transporter.sendMail(mailOptions);
+    return true;
+  } catch (error) {
+    console.error('Nodemailer Error (Subscription Credentials):', error);
+    return false;
+  }
+};
   
