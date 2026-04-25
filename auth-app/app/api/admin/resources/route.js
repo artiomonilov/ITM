@@ -75,6 +75,24 @@ async function buildResponse() {
   };
 }
 
+async function getCourseSetupPlan(courseId) {
+  const course = await Course.findById(courseId)
+    .populate('students', 'nume prenume email')
+    .select('name students resourceRequirements')
+    .lean();
+
+  if (!course) {
+    return null;
+  }
+
+  return {
+    course,
+    students: course.students || [],
+    tokenPerStudent: course.resourceRequirements?.tokenPerStudent || 0,
+    subscriptionPerStudent: course.resourceRequirements?.subscriptionPerStudent || 0,
+  };
+}
+
 export async function GET() {
   try {
     const session = await requireAdmin();
@@ -181,6 +199,9 @@ export async function PUT(req) {
 
     const inventory = await getOrCreateInventory();
     const usage = await calculateUsage();
+    const courseSetupPlan = request.scope === 'COURSE_SETUP'
+      ? await getCourseSetupPlan(request.courseId._id || request.courseId)
+      : null;
 
     if (request.type === 'TOKEN') {
       const remainingTokens = inventory.totalTokens - usage.TOKEN;
@@ -188,14 +209,27 @@ export async function PUT(req) {
         return NextResponse.json({ message: 'Nu exista suficiente tokenuri disponibile pentru aprobare.' }, { status: 400 });
       }
 
-      await Resource.create({
-        studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
-        profId: request.professorId._id,
-        courseId: request.courseId._id,
-        type: 'TOKEN',
-        quantity: request.quantity,
-        allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
-      });
+      if (request.scope === 'COURSE_SETUP' && courseSetupPlan?.students.length && courseSetupPlan.tokenPerStudent > 0) {
+        await Resource.insertMany(
+          courseSetupPlan.students.map((student) => ({
+            studentId: student._id,
+            profId: request.professorId._id,
+            courseId: request.courseId._id,
+            type: 'TOKEN',
+            quantity: courseSetupPlan.tokenPerStudent,
+            allocationScope: 'COURSE',
+          }))
+        );
+      } else {
+        await Resource.create({
+          studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
+          profId: request.professorId._id,
+          courseId: request.courseId._id,
+          type: 'TOKEN',
+          quantity: request.quantity,
+          allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
+        });
+      }
     }
 
     if (request.type === 'SUBSCRIPTION') {
@@ -206,24 +240,53 @@ export async function PUT(req) {
 
       const credentials = [];
       let usedFallbackCredentials = false;
-      for (let index = 0; index < request.quantity; index += 1) {
-        const credential = await createSubscriptionCredentialSet(
-          `${request.courseId.name.toLowerCase().replace(/\s+/g, '-')}-${index + 1}`,
-        );
-        credentials.push(credential);
-        if (credential.provisionedBy === 'fallback') {
-          usedFallbackCredentials = true;
-        }
+      const resourceEntries = [];
+      const courseSlug = request.courseId.name.toLowerCase().replace(/\s+/g, '-');
 
-        await Resource.create({
-          studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
-          profId: request.professorId._id,
-          courseId: request.courseId._id,
-          type: 'SUBSCRIPTION',
-          quantity: 1,
-          allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
-          credentials: credential,
-        });
+      if (request.scope === 'COURSE_SETUP' && courseSetupPlan?.students.length && courseSetupPlan.subscriptionPerStudent > 0) {
+        for (const student of courseSetupPlan.students) {
+          for (let index = 0; index < courseSetupPlan.subscriptionPerStudent; index += 1) {
+            const credential = await createSubscriptionCredentialSet(
+              `${courseSlug}-${student._id.toString()}-${index + 1}`,
+            );
+            credentials.push(credential);
+            if (credential.provisionedBy === 'fallback') {
+              usedFallbackCredentials = true;
+            }
+
+            resourceEntries.push({
+              studentId: student._id,
+              profId: request.professorId._id,
+              courseId: request.courseId._id,
+              type: 'SUBSCRIPTION',
+              quantity: 1,
+              allocationScope: 'COURSE',
+              credentials: credential,
+            });
+          }
+        }
+      } else {
+        for (let index = 0; index < request.quantity; index += 1) {
+          const credential = await createSubscriptionCredentialSet(`${courseSlug}-${index + 1}`);
+          credentials.push(credential);
+          if (credential.provisionedBy === 'fallback') {
+            usedFallbackCredentials = true;
+          }
+
+          resourceEntries.push({
+            studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
+            profId: request.professorId._id,
+            courseId: request.courseId._id,
+            type: 'SUBSCRIPTION',
+            quantity: 1,
+            allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
+            credentials: credential,
+          });
+        }
+      }
+
+      if (resourceEntries.length > 0) {
+        await Resource.insertMany(resourceEntries);
       }
 
       await sendSubscriptionCredentialsEmail(

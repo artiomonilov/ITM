@@ -20,8 +20,6 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
   const [studentSummary, setStudentSummary] = useState(null);
   const [studentRequests, setStudentRequests] = useState([]);
   const [professorRequests, setProfessorRequests] = useState([]);
-  const [manualTokenQuantity, setManualTokenQuantity] = useState(10);
-  const [manualTokenReason, setManualTokenReason] = useState('');
   const [extraRequestType, setExtraRequestType] = useState('TOKEN');
   const [extraRequestQuantity, setExtraRequestQuantity] = useState(1);
   const [extraRequestReason, setExtraRequestReason] = useState('');
@@ -47,26 +45,6 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
       }
     }
   }, [selectedActivityId]);
-
-  const loadWorkspace = useCallback(async () => {
-    setWorkspaceLoading(true);
-    try {
-      const res = await fetch(`/api/courses/${courseId}/workspace`);
-      const data = await res.json();
-
-      if (!res.ok) {
-        setMessage(data.message || 'Nu am putut incarca zona de activitati.');
-        return;
-      }
-
-      applyWorkspacePayload(data);
-    } catch (error) {
-      console.error(error);
-      setMessage('Nu am putut incarca zona de activitati.');
-    } finally {
-      setWorkspaceLoading(false);
-    }
-  }, [applyWorkspacePayload, courseId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -301,21 +279,6 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
     });
   };
 
-  const handleManualTokenSimulation = async (event) => {
-    event.preventDefault();
-    await handleWorkspaceAction('simulateTokenConsumption', {
-      quantity: manualTokenQuantity,
-      reason: manualTokenReason,
-    });
-    setManualTokenReason('');
-  };
-
-  const handleSubscriptionValidation = async () => {
-    await handleWorkspaceAction('validateSubscriptionUsage', {
-      reason: 'Validare manuala in pagina de curs.',
-    });
-  };
-
   const handleExtraRequestSubmit = async (event) => {
     event.preventDefault();
     setWorkspaceActionLoading(true);
@@ -419,66 +382,13 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                 <div className="rounded border border-blue-200 bg-blue-50 p-4">
                   <p className="text-sm text-gray-600">Tokenuri ramase</p>
                   <p className="text-2xl font-bold text-blue-800">{studentSummary?.remainingTokens ?? 0}</p>
-                  <p className="mt-1 text-xs text-gray-600">Baza: {studentSummary?.baseTokens ?? 0} | Extra: {studentSummary?.extraTokens ?? 0}</p>
+                  <p className="mt-1 text-xs text-gray-600">Alocate la curs: {studentSummary?.baseTokens ?? 0} | Extra: {studentSummary?.extraTokens ?? 0}</p>
                 </div>
                 <div className="rounded border border-indigo-200 bg-indigo-50 p-4">
                   <p className="text-sm text-gray-600">Abonamente ramase</p>
                   <p className="text-2xl font-bold text-indigo-800">{studentSummary?.remainingSubscriptions ?? 0}</p>
-                  <p className="mt-1 text-xs text-gray-600">Baza: {studentSummary?.baseSubscriptions ?? 0} | Extra: {studentSummary?.extraSubscriptions ?? 0}</p>
+                  <p className="mt-1 text-xs text-gray-600">Alocate la curs: {studentSummary?.baseSubscriptions ?? 0} | Extra: {studentSummary?.extraSubscriptions ?? 0}</p>
                 </div>
-                <div className="rounded border border-amber-200 bg-amber-50 p-4">
-                  <p className="text-sm text-gray-600">Consum manual tokenuri</p>
-                  <p className="text-2xl font-bold text-amber-800">{studentSummary?.manualTokenScore ?? 0}/5</p>
-                  <p className="mt-1 text-xs text-gray-600">{studentSummary?.manualTokenActions ?? 0} actiuni x 0.5p</p>
-                </div>
-                <div className="rounded border border-green-200 bg-green-50 p-4">
-                  <p className="text-sm text-gray-600">Validare abonament</p>
-                  <p className="text-2xl font-bold text-green-800">{studentSummary?.subscriptionValidationScore ?? 0}/5</p>
-                  <p className="mt-1 text-xs text-gray-600">Fara punctaj partial</p>
-                </div>
-              </div>
-
-              <form onSubmit={handleManualTokenSimulation} className="rounded border border-gray-200 bg-gray-50 p-4">
-                <h3 className="mb-3 text-lg font-semibold">Simulare consum manual tokenuri</h3>
-                <div className="mb-3">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Cantitate</label>
-                  <input
-                    type="number"
-                    min="1"
-                    value={manualTokenQuantity}
-                    onChange={(event) => setManualTokenQuantity(event.target.value)}
-                    className="w-full rounded border border-gray-300 p-2"
-                  />
-                </div>
-                <div className="mb-3">
-                  <label className="mb-1 block text-sm font-medium text-gray-700">Motiv</label>
-                  <textarea
-                    rows={3}
-                    value={manualTokenReason}
-                    onChange={(event) => setManualTokenReason(event.target.value)}
-                    className="w-full rounded border border-gray-300 p-2"
-                  />
-                </div>
-                <button
-                  type="submit"
-                  disabled={workspaceActionLoading}
-                  className="rounded bg-amber-600 px-4 py-2 font-bold text-white hover:bg-amber-700 disabled:opacity-50"
-                >
-                  Simuleaza consumul
-                </button>
-              </form>
-
-              <div className="rounded border border-gray-200 bg-gray-50 p-4">
-                <h3 className="mb-3 text-lg font-semibold">Validare utilizare abonament</h3>
-                <p className="mb-3 text-sm text-gray-600">Aceasta actiune simuleaza validarea utilizarii unui abonament si acorda punctaj doar la finalizare.</p>
-                <button
-                  type="button"
-                  disabled={workspaceActionLoading}
-                  onClick={handleSubscriptionValidation}
-                  className="rounded bg-green-600 px-4 py-2 font-bold text-white hover:bg-green-700 disabled:opacity-50"
-                >
-                  Valideaza utilizarea
-                </button>
               </div>
 
               <form onSubmit={handleExtraRequestSubmit} className="rounded border border-gray-200 bg-gray-50 p-4">

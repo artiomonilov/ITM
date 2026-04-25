@@ -124,8 +124,9 @@ export default function CreateCoursePage() {
     }
   };
 
-  const totalTokens = (Number(maxStudents) || 0) * (Number(tokenPerStudent) || 0);
-  const totalSubscriptions = (Number(maxStudents) || 0) * (Number(subscriptionPerStudent) || 0);
+  const assignedStudentsCount = selectedStudents.length;
+  const totalTokens = assignedStudentsCount * (Number(tokenPerStudent) || 0);
+  const totalSubscriptions = assignedStudentsCount * (Number(subscriptionPerStudent) || 0);
   const professorCoursesForList = professorCourses.map((course) => ({
     _id: course._id,
     name: course.name,
@@ -225,7 +226,7 @@ export default function CreateCoursePage() {
               </div>
 
               <div className="mb-6 rounded border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
-                Total solicitat catre administrator: <strong>{totalTokens}</strong> tokenuri si <strong>{totalSubscriptions}</strong> abonamente.
+                Total solicitat catre administrator pentru studentii atribuiti: <strong>{totalTokens}</strong> tokenuri si <strong>{totalSubscriptions}</strong> abonamente.
                 Supliment profesor (10%): <strong>{Math.ceil(totalTokens * 0.1)}</strong> tokenuri si <strong>{Math.ceil(totalSubscriptions * 0.1)}</strong> abonamente.
               </div>
 

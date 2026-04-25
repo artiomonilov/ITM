@@ -197,37 +197,6 @@ export async function POST(req, { params }) {
       tokenConsumed: tokenCost,
       subscriptionConsumed: subscriptionCost,
     });
-  } else if (action === 'simulateTokenConsumption') {
-    const quantity = Math.max(1, Number(body.quantity) || 0);
-    if (summary.remainingTokens < quantity) {
-      return NextResponse.json({ message: 'Nu mai ai suficiente tokenuri pentru aceasta simulare.' }, { status: 400 });
-    }
-
-    await CourseActivityLog.create({
-      courseId,
-      studentId: session.user.id,
-      activityTitle: 'Consum manual tokenuri',
-      mode: 'MANUAL_TOKEN',
-      prompt: body.reason || '',
-      response: `Consum manual simulat pentru ${quantity} tokenuri.`,
-      tokenConsumed: quantity,
-      subscriptionConsumed: 0,
-    });
-  } else if (action === 'validateSubscriptionUsage') {
-    if (summary.remainingSubscriptions < 1) {
-      return NextResponse.json({ message: 'Nu mai ai abonamente disponibile pentru validare.' }, { status: 400 });
-    }
-
-    await CourseActivityLog.create({
-      courseId,
-      studentId: session.user.id,
-      activityTitle: 'Validare utilizare abonament',
-      mode: 'SUBSCRIPTION_VALIDATION',
-      prompt: body.reason || '',
-      response: 'Utilizarea abonamentului a fost validata in regim demonstrativ.',
-      tokenConsumed: 0,
-      subscriptionConsumed: 1,
-    });
   } else {
     return NextResponse.json({ message: 'Actiune necunoscuta.' }, { status: 400 });
   }

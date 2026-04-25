@@ -24,13 +24,14 @@ export async function POST(req) {
 
     const courseDestination = destination === 'PROFESSOR' ? 'PROFESSOR' : 'STUDENT';
     const assignedStudents = courseDestination === 'STUDENT' ? (students || []) : [];
+    const assignedStudentsCount = assignedStudents.length;
     const maxStudentsValue = courseDestination === 'STUDENT'
       ? Math.max(Number(maxStudents) || 0, assignedStudents.length)
       : 0;
     const tokenPerStudentValue = courseDestination === 'STUDENT' ? Math.max(0, Number(tokenPerStudent) || 0) : 0;
     const subscriptionPerStudentValue = courseDestination === 'STUDENT' ? Math.max(0, Number(subscriptionPerStudent) || 0) : 0;
-    const tokenTotalRequested = maxStudentsValue * tokenPerStudentValue;
-    const subscriptionTotalRequested = maxStudentsValue * subscriptionPerStudentValue;
+    const tokenTotalRequested = assignedStudentsCount * tokenPerStudentValue;
+    const subscriptionTotalRequested = assignedStudentsCount * subscriptionPerStudentValue;
     const tokenExtraAllowance = Math.ceil(tokenTotalRequested * 0.1);
     const subscriptionExtraAllowance = Math.ceil(subscriptionTotalRequested * 0.1);
 
@@ -59,7 +60,7 @@ export async function POST(req) {
         type: 'TOKEN',
         quantity: tokenTotalRequested,
         scope: 'COURSE_SETUP',
-        reason: `Necesar initial pentru curs (${tokenPerStudentValue} tokenuri/student x ${maxStudentsValue} studenti). Supliment profesor: ${tokenExtraAllowance}.`,
+        reason: `Necesar initial pentru curs (${tokenPerStudentValue} tokenuri/student x ${assignedStudentsCount} studenti atribuiti). Supliment profesor: ${tokenExtraAllowance}.`,
       });
     }
 
@@ -70,7 +71,7 @@ export async function POST(req) {
         type: 'SUBSCRIPTION',
         quantity: subscriptionTotalRequested,
         scope: 'COURSE_SETUP',
-        reason: `Necesar initial pentru curs (${subscriptionPerStudentValue} abonamente/student x ${maxStudentsValue} studenti). Supliment profesor: ${subscriptionExtraAllowance}.`,
+        reason: `Necesar initial pentru curs (${subscriptionPerStudentValue} abonamente/student x ${assignedStudentsCount} studenti atribuiti). Supliment profesor: ${subscriptionExtraAllowance}.`,
       });
     }
 
