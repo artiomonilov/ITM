@@ -4,9 +4,9 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 import { connectDB } from '@/lib/mongodb';
 import Activity from '@/models/Activity';
 import Course from '@/models/Course';
+import CourseActivityLog from '@/models/CourseActivityLog';
 import Resource from '@/models/Resource';
 import ResourceInventory from '@/models/ResourceInventory';
-import ResourceUsage from '@/models/ResourceUsage';
 import User from '@/models/User';
 
 async function requireAdmin() {
@@ -23,227 +23,240 @@ function createZeroActivityMap(activities) {
     activityId: activity._id.toString(),
     activityTitle: activity.title,
     tokenCost: activity.tokenCost || 0,
+    subscriptionCost: activity.subscriptionCost || 0,
     usagesCount: 0,
     totalTokensUsed: 0,
+    totalSubscriptionsUsed: 0,
   }));
 }
 
-function mergeActivityUsage(baseActivities, groupedUsage) {
-  const byId = new Map(
-    baseActivities.map((activity) => [activity.activityId, { ...activity }]),
-  );
-
-  groupedUsage.forEach((usage) => {
-    if (usage.activityId && byId.has(usage.activityId)) {
-      const entry = byId.get(usage.activityId);
-      entry.usagesCount = usage.usagesCount;
-      entry.totalTokensUsed = usage.totalTokensUsed;
-      return;
-    }
-
-    const fallbackKey = `fallback:${usage.activityTitle}`;
-    byId.set(fallbackKey, {
-      activityId: usage.activityId || null,
-      activityTitle: usage.activityTitle || 'Activitate fara nume',
-      tokenCost: usage.tokenCost || 0,
-      usagesCount: usage.usagesCount,
-      totalTokensUsed: usage.totalTokensUsed,
-    });
-  });
-
-  return Array.from(byId.values()).sort((left, right) => right.totalTokensUsed - left.totalTokensUsed);
+function buildActivityKey({ activityId, activityTitle }) {
+  return activityId ? `id:${activityId}` : `title:${activityTitle || 'Activitate fara nume'}`;
 }
 
-async function getActivityGroupedUsage(match) {
-  const grouped = await ResourceUsage.aggregate([
-    { $match: { ...match, resourceType: 'TOKEN' } },
-    {
-      $group: {
-        _id: {
-          activityId: '$activityId',
-          activityTitle: '$activityTitle',
-          tokenCostPerUnit: '$tokenCostPerUnit',
-        },
-        usagesCount: { $sum: '$quantity' },
-        totalTokensUsed: { $sum: '$totalTokensUsed' },
-      },
-    },
-  ]);
+function accumulateActivityUsage(targetMap, log, activitiesById) {
+  const activityId = log.activityId ? log.activityId.toString() : null;
+  const activityTitle = log.activityTitle || 'Activitate fara nume';
+  const activityDefinition = activityId ? activitiesById.get(activityId) : null;
+  const key = buildActivityKey({ activityId, activityTitle });
 
-  return grouped.map((entry) => ({
-    activityId: entry._id.activityId ? entry._id.activityId.toString() : null,
-    activityTitle: entry._id.activityTitle,
-    tokenCost: entry._id.tokenCostPerUnit || 0,
-    usagesCount: entry.usagesCount,
-    totalTokensUsed: entry.totalTokensUsed,
-  }));
-}
-
-async function buildStudentStats(activities) {
-  const students = await User.find({ role: 'Student' }).select('nume prenume email');
-  const courses = await Course.find()
-    .populate('students', '_id')
-    .select('name students resourceRequirements');
-
-  const extraAllocated = await Resource.find({ studentId: { $ne: null } }).select('studentId type quantity');
-  const usageLogs = await ResourceUsage.find()
-    .populate('studentId', 'nume prenume email')
-    .select('studentId resourceType totalTokensUsed subscriptionCountUsed');
-
-  const extraByStudent = new Map();
-  extraAllocated.forEach((resource) => {
-    const key = resource.studentId.toString();
-    if (!extraByStudent.has(key)) {
-      extraByStudent.set(key, { TOKEN: 0, SUBSCRIPTION: 0 });
-    }
-
-    extraByStudent.get(key)[resource.type] += resource.quantity;
-  });
-
-  const usageByStudent = new Map();
-  usageLogs.forEach((usage) => {
-    if (!usage.studentId) {
-      return;
-    }
-
-    const key = usage.studentId._id.toString();
-    if (!usageByStudent.has(key)) {
-      usageByStudent.set(key, { totalTokensUsed: 0, totalSubscriptionsUsed: 0 });
-    }
-
-    usageByStudent.get(key).totalTokensUsed += usage.totalTokensUsed || 0;
-    usageByStudent.get(key).totalSubscriptionsUsed += usage.subscriptionCountUsed || 0;
-  });
-
-  const result = [];
-
-  for (const student of students) {
-    const studentId = student._id.toString();
-    let allocatedTokens = 0;
-    let allocatedSubscriptions = 0;
-
-    courses.forEach((course) => {
-      const isEnrolled = course.students.some((entry) => entry._id.toString() === studentId);
-      if (!isEnrolled) {
-        return;
-      }
-
-      allocatedTokens += course.resourceRequirements?.tokenPerStudent || 0;
-      allocatedSubscriptions += course.resourceRequirements?.subscriptionPerStudent || 0;
-    });
-
-    allocatedTokens += extraByStudent.get(studentId)?.TOKEN || 0;
-    allocatedSubscriptions += extraByStudent.get(studentId)?.SUBSCRIPTION || 0;
-
-    const groupedUsage = await getActivityGroupedUsage({ studentId: student._id });
-    const activityBreakdown = mergeActivityUsage(createZeroActivityMap(activities), groupedUsage);
-    const totals = usageByStudent.get(studentId) || { totalTokensUsed: 0, totalSubscriptionsUsed: 0 };
-
-    result.push({
-      studentId,
-      studentName: `${student.nume} ${student.prenume}`,
-      email: student.email,
-      allocatedTokens,
-      totalTokensUsed: totals.totalTokensUsed,
-      allocatedSubscriptions,
-      totalSubscriptionsUsed: totals.totalSubscriptionsUsed,
-      activityBreakdown,
+  if (!targetMap.has(key)) {
+    targetMap.set(key, {
+      activityId,
+      activityTitle: activityDefinition?.title || activityTitle,
+      tokenCost: activityDefinition?.tokenCost ?? 0,
+      subscriptionCost: activityDefinition?.subscriptionCost ?? 0,
+      usagesCount: 0,
+      totalTokensUsed: 0,
+      totalSubscriptionsUsed: 0,
     });
   }
 
-  return result.sort((left, right) => right.totalTokensUsed - left.totalTokensUsed);
+  const entry = targetMap.get(key);
+  entry.usagesCount += 1;
+  entry.totalTokensUsed += log.tokenConsumed || 0;
+  entry.totalSubscriptionsUsed += log.subscriptionConsumed || 0;
+
+  if (!activityDefinition) {
+    if (entry.tokenCost === 0 && (log.tokenConsumed || 0) > 0) {
+      entry.tokenCost = log.tokenConsumed || 0;
+    }
+    if (entry.subscriptionCost === 0 && (log.subscriptionConsumed || 0) > 0) {
+      entry.subscriptionCost = log.subscriptionConsumed || 0;
+    }
+  }
 }
 
-async function buildCourseStats(activities) {
-  const courses = await Course.find()
-    .populate('teacher', 'nume prenume email')
-    .select('name teacher students resourceRequirements');
-  const allocatedResources = await Resource.find().select('courseId type quantity');
-  const usageLogs = await ResourceUsage.find().select('courseId totalTokensUsed subscriptionCountUsed');
+function mergeActivityUsage(baseActivities, groupedMap) {
+  const merged = new Map(
+    baseActivities.map((activity) => [buildActivityKey(activity), { ...activity }]),
+  );
 
-  const allocationByCourse = new Map();
-  allocatedResources.forEach((resource) => {
-    if (!resource.courseId) {
+  groupedMap.forEach((usage, key) => {
+    if (merged.has(key)) {
+      const entry = merged.get(key);
+      entry.usagesCount = usage.usagesCount;
+      entry.totalTokensUsed = usage.totalTokensUsed;
+      entry.totalSubscriptionsUsed = usage.totalSubscriptionsUsed;
+      if (!entry.tokenCost && usage.tokenCost) {
+        entry.tokenCost = usage.tokenCost;
+      }
+      if (!entry.subscriptionCost && usage.subscriptionCost) {
+        entry.subscriptionCost = usage.subscriptionCost;
+      }
       return;
     }
 
-    const key = resource.courseId.toString();
-    if (!allocationByCourse.has(key)) {
-      allocationByCourse.set(key, { TOKEN: 0, SUBSCRIPTION: 0 });
-    }
-
-    allocationByCourse.get(key)[resource.type] += resource.quantity;
+    merged.set(key, usage);
   });
 
+  return Array.from(merged.values()).sort((left, right) => {
+    if (right.totalTokensUsed !== left.totalTokensUsed) {
+      return right.totalTokensUsed - left.totalTokensUsed;
+    }
+    if (right.totalSubscriptionsUsed !== left.totalSubscriptionsUsed) {
+      return right.totalSubscriptionsUsed - left.totalSubscriptionsUsed;
+    }
+    return left.activityTitle.localeCompare(right.activityTitle, 'ro');
+  });
+}
+
+function buildAllocationMap(resources, selector) {
+  const allocationMap = new Map();
+
+  resources.forEach((resource) => {
+    const selectedValue = selector(resource);
+    if (!selectedValue) {
+      return;
+    }
+
+    const key = selectedValue.toString();
+    if (!allocationMap.has(key)) {
+      allocationMap.set(key, { TOKEN: 0, SUBSCRIPTION: 0 });
+    }
+
+    allocationMap.get(key)[resource.type] += resource.quantity || 0;
+  });
+
+  return allocationMap;
+}
+
+function buildUsageMaps(logs, activitiesById) {
+  const usageByStudent = new Map();
   const usageByCourse = new Map();
-  usageLogs.forEach((usage) => {
-    if (!usage.courseId) {
-      return;
+  const studentActivityMaps = new Map();
+  const courseActivityMaps = new Map();
+  const universityActivityMap = new Map();
+
+  logs.forEach((log) => {
+    const tokenConsumed = log.tokenConsumed || 0;
+    const subscriptionConsumed = log.subscriptionConsumed || 0;
+
+    if (log.studentId) {
+      const studentKey = log.studentId.toString();
+      if (!usageByStudent.has(studentKey)) {
+        usageByStudent.set(studentKey, { totalTokensUsed: 0, totalSubscriptionsUsed: 0 });
+      }
+
+      usageByStudent.get(studentKey).totalTokensUsed += tokenConsumed;
+      usageByStudent.get(studentKey).totalSubscriptionsUsed += subscriptionConsumed;
+
+      if (!studentActivityMaps.has(studentKey)) {
+        studentActivityMaps.set(studentKey, new Map());
+      }
+      accumulateActivityUsage(studentActivityMaps.get(studentKey), log, activitiesById);
     }
 
-    const key = usage.courseId.toString();
-    if (!usageByCourse.has(key)) {
-      usageByCourse.set(key, { totalTokensUsed: 0, totalSubscriptionsUsed: 0 });
+    if (log.courseId) {
+      const courseKey = log.courseId.toString();
+      if (!usageByCourse.has(courseKey)) {
+        usageByCourse.set(courseKey, { totalTokensUsed: 0, totalSubscriptionsUsed: 0 });
+      }
+
+      usageByCourse.get(courseKey).totalTokensUsed += tokenConsumed;
+      usageByCourse.get(courseKey).totalSubscriptionsUsed += subscriptionConsumed;
+
+      if (!courseActivityMaps.has(courseKey)) {
+        courseActivityMaps.set(courseKey, new Map());
+      }
+      accumulateActivityUsage(courseActivityMaps.get(courseKey), log, activitiesById);
     }
 
-    usageByCourse.get(key).totalTokensUsed += usage.totalTokensUsed || 0;
-    usageByCourse.get(key).totalSubscriptionsUsed += usage.subscriptionCountUsed || 0;
+    accumulateActivityUsage(universityActivityMap, log, activitiesById);
   });
 
-  const result = [];
+  return {
+    usageByStudent,
+    usageByCourse,
+    studentActivityMaps,
+    courseActivityMaps,
+    universityActivityMap,
+  };
+}
 
-  for (const course of courses) {
+function buildUniversityStats({ inventory, resources, usageMaps, baseActivities }) {
+  const allocatedTokens = resources
+    .filter((resource) => resource.type === 'TOKEN')
+    .reduce((sum, resource) => sum + (resource.quantity || 0), 0);
+
+  const allocatedSubscriptions = resources
+    .filter((resource) => resource.type === 'SUBSCRIPTION')
+    .reduce((sum, resource) => sum + (resource.quantity || 0), 0);
+
+  const totalTokensUsed = Array.from(usageMaps.usageByCourse.values())
+    .reduce((sum, usage) => sum + (usage.totalTokensUsed || 0), 0);
+  const totalSubscriptionsUsed = Array.from(usageMaps.usageByCourse.values())
+    .reduce((sum, usage) => sum + (usage.totalSubscriptionsUsed || 0), 0);
+
+  const totalTokensInventory = inventory?.totalTokens || 0;
+  const totalSubscriptionsInventory = inventory?.totalSubscriptions || 0;
+
+  return {
+    totalTokensInventory,
+    availableTokens: Math.max(0, totalTokensInventory - allocatedTokens),
+    allocatedTokens,
+    totalTokensUsed,
+    remainingAllocatedTokens: Math.max(0, allocatedTokens - totalTokensUsed),
+    totalSubscriptionsInventory,
+    availableSubscriptions: Math.max(0, totalSubscriptionsInventory - allocatedSubscriptions),
+    allocatedSubscriptions,
+    totalSubscriptionsUsed,
+    remainingAllocatedSubscriptions: Math.max(0, allocatedSubscriptions - totalSubscriptionsUsed),
+    activityBreakdown: mergeActivityUsage(baseActivities, usageMaps.universityActivityMap),
+  };
+}
+
+function buildCourseStats({ courses, allocationByCourse, usageMaps, baseActivities }) {
+  return courses.map((course) => {
     const courseId = course._id.toString();
-    const groupedUsage = await getActivityGroupedUsage({ courseId: course._id });
-    const activityBreakdown = mergeActivityUsage(createZeroActivityMap(activities), groupedUsage);
     const allocated = allocationByCourse.get(courseId) || { TOKEN: 0, SUBSCRIPTION: 0 };
-    const totals = usageByCourse.get(courseId) || { totalTokensUsed: 0, totalSubscriptionsUsed: 0 };
+    const usage = usageMaps.usageByCourse.get(courseId) || { totalTokensUsed: 0, totalSubscriptionsUsed: 0 };
 
-    result.push({
+    return {
       courseId,
       courseName: course.name,
       teacherName: course.teacher ? `${course.teacher.nume} ${course.teacher.prenume}` : 'N/A',
       studentsCount: course.students?.length || 0,
-      requestedTokens: course.resourceRequirements?.tokenTotalRequested || 0,
       allocatedTokens: allocated.TOKEN,
-      totalTokensUsed: totals.totalTokensUsed,
-      requestedSubscriptions: course.resourceRequirements?.subscriptionTotalRequested || 0,
+      totalTokensUsed: usage.totalTokensUsed,
+      remainingTokens: Math.max(0, allocated.TOKEN - usage.totalTokensUsed),
       allocatedSubscriptions: allocated.SUBSCRIPTION,
-      totalSubscriptionsUsed: totals.totalSubscriptionsUsed,
-      activityBreakdown,
-    });
-  }
-
-  return result.sort((left, right) => right.totalTokensUsed - left.totalTokensUsed);
+      totalSubscriptionsUsed: usage.totalSubscriptionsUsed,
+      remainingSubscriptions: Math.max(0, allocated.SUBSCRIPTION - usage.totalSubscriptionsUsed),
+      activityBreakdown: mergeActivityUsage(baseActivities, usageMaps.courseActivityMaps.get(courseId) || new Map()),
+    };
+  }).sort((left, right) => {
+    if (right.totalTokensUsed !== left.totalTokensUsed) {
+      return right.totalTokensUsed - left.totalTokensUsed;
+    }
+    return right.totalSubscriptionsUsed - left.totalSubscriptionsUsed;
+  });
 }
 
-async function buildUniversityStats(activities) {
-  const inventory = await ResourceInventory.findOne();
-  const allocatedResources = await Resource.find();
-  const usageLogs = await ResourceUsage.find();
-  const groupedUsage = await getActivityGroupedUsage({});
-  const activityBreakdown = mergeActivityUsage(createZeroActivityMap(activities), groupedUsage);
+function buildStudentStats({ students, allocationByStudent, usageMaps, baseActivities }) {
+  return students.map((student) => {
+    const studentId = student._id.toString();
+    const allocated = allocationByStudent.get(studentId) || { TOKEN: 0, SUBSCRIPTION: 0 };
+    const usage = usageMaps.usageByStudent.get(studentId) || { totalTokensUsed: 0, totalSubscriptionsUsed: 0 };
 
-  const allocatedTokens = allocatedResources
-    .filter((resource) => resource.type === 'TOKEN')
-    .reduce((sum, resource) => sum + (resource.quantity || 0), 0);
-
-  const allocatedSubscriptions = allocatedResources
-    .filter((resource) => resource.type === 'SUBSCRIPTION')
-    .reduce((sum, resource) => sum + (resource.quantity || 0), 0);
-
-  const totalTokensUsed = usageLogs.reduce((sum, usage) => sum + (usage.totalTokensUsed || 0), 0);
-  const totalSubscriptionsUsed = usageLogs.reduce((sum, usage) => sum + (usage.subscriptionCountUsed || 0), 0);
-
-  return {
-    totalTokensAvailable: inventory?.totalTokens || 0,
-    totalSubscriptionsAvailable: inventory?.totalSubscriptions || 0,
-    allocatedTokens,
-    totalTokensUsed,
-    allocatedSubscriptions,
-    totalSubscriptionsUsed,
-    activityBreakdown,
-  };
+    return {
+      studentId,
+      studentName: `${student.nume} ${student.prenume}`,
+      email: student.email,
+      allocatedTokens: allocated.TOKEN,
+      totalTokensUsed: usage.totalTokensUsed,
+      remainingTokens: Math.max(0, allocated.TOKEN - usage.totalTokensUsed),
+      allocatedSubscriptions: allocated.SUBSCRIPTION,
+      totalSubscriptionsUsed: usage.totalSubscriptionsUsed,
+      remainingSubscriptions: Math.max(0, allocated.SUBSCRIPTION - usage.totalSubscriptionsUsed),
+      activityBreakdown: mergeActivityUsage(baseActivities, usageMaps.studentActivityMaps.get(studentId) || new Map()),
+    };
+  }).sort((left, right) => {
+    if (right.totalTokensUsed !== left.totalTokensUsed) {
+      return right.totalTokensUsed - left.totalTokensUsed;
+    }
+    return right.totalSubscriptionsUsed - left.totalSubscriptionsUsed;
+  });
 }
 
 export async function GET() {
@@ -255,23 +268,72 @@ export async function GET() {
 
     await connectDB();
 
-    const activities = await Activity.find().sort({ createdAt: 1 }).select('title tokenCost');
-    const [studentStats, courseStats, universityStats] = await Promise.all([
-      buildStudentStats(activities),
-      buildCourseStats(activities),
-      buildUniversityStats(activities),
+    const studentDestinationFilter = {
+      $or: [
+        { destination: 'STUDENT' },
+        { destination: { $exists: false } },
+        { destination: null },
+      ],
+    };
+
+    const [activities, courses, students, resources, logs, inventory] = await Promise.all([
+      Activity.find().sort({ createdAt: 1 }).select('title tokenCost subscriptionCost').lean(),
+      Course.find(studentDestinationFilter)
+        .populate('teacher', 'nume prenume email')
+        .populate('students', '_id')
+        .select('name teacher students destination')
+        .lean(),
+      User.find({ role: 'Student' }).select('nume prenume email').lean(),
+      Resource.find().select('studentId courseId type quantity allocationScope').lean(),
+      CourseActivityLog.find().select('studentId courseId activityId activityTitle tokenConsumed subscriptionConsumed').lean(),
+      ResourceInventory.findOne().lean(),
     ]);
 
+    const activitiesById = new Map(activities.map((activity) => [activity._id.toString(), activity]));
+    const baseActivities = createZeroActivityMap(activities);
+    const validCourseIds = new Set(courses.map((course) => course._id.toString()));
+    const filteredResources = resources.filter((resource) => {
+      if (!resource.courseId) {
+        return true;
+      }
+      return validCourseIds.has(resource.courseId.toString());
+    });
+    const filteredLogs = logs.filter((log) => {
+      if (!log.courseId) {
+        return true;
+      }
+      return validCourseIds.has(log.courseId.toString());
+    });
+
+    const allocationByStudent = buildAllocationMap(filteredResources, (resource) => resource.studentId);
+    const allocationByCourse = buildAllocationMap(filteredResources, (resource) => resource.courseId);
+    const usageMaps = buildUsageMaps(filteredLogs, activitiesById);
+
     return NextResponse.json({
-      studentStats,
-      courseStats,
-      universityStats,
+      universityStats: buildUniversityStats({
+        inventory,
+        resources: filteredResources,
+        usageMaps,
+        baseActivities,
+      }),
+      courseStats: buildCourseStats({
+        courses,
+        allocationByCourse,
+        usageMaps,
+        baseActivities,
+      }),
+      studentStats: buildStudentStats({
+        students,
+        allocationByStudent,
+        usageMaps,
+        baseActivities,
+      }),
     });
   } catch (error) {
     console.error('Eroare statistici admin:', error);
     return NextResponse.json(
       { message: error?.message || 'Eroare interna la calculul statisticilor.' },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
