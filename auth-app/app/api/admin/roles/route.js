@@ -11,7 +11,7 @@ export async function PUT(req) {
       return NextResponse.json({ error: "Restricționat: Doar administratorii au acces." }, { status: 403 });
     }
 
-    const { targetUserEmail, action, newRole, toggleStatus } = await req.json();
+    const { targetUserEmail, action, newRole, toggleStatus, newNume, newPrenume } = await req.json();
     await connectDB();
 
     const user = await User.findOne({ email: targetUserEmail });
@@ -27,6 +27,14 @@ export async function PUT(req) {
     // Modificare Stare Activ/Inactiv
     else if (action === 'toggleStatus') {
       user.isActive = toggleStatus;
+    }
+    // Salvare modificare detalii (Nume, Prenume)
+    else if (action === 'updateDetails') {
+       if(!newNume || !newPrenume) {
+           return NextResponse.json({ message: "Numele și prenumele nu pot fi goale." }, { status: 400 });
+       }
+       user.nume = newNume;
+       user.prenume = newPrenume;
     } else {
       return NextResponse.json({ message: "Acțiune invalidă" }, { status: 400 });
     }
@@ -34,7 +42,7 @@ export async function PUT(req) {
     await user.save();
     return NextResponse.json({ message: `Acțiune reușită pentru ${user.email}!` }, { status: 200 });
   } catch (error) {
-    return NextResponse.json({ message: "A apărut o eroare." }, { status: 500 });
+    return NextResponse.json({ message: "A apărut o eroare interna." }, { status: 500 });
   }
 }
 
