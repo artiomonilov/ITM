@@ -47,7 +47,7 @@ function loadUtf8Resource(relativePath) {
 
 export const config = {
   host: process.env.HOST || '0.0.0.0',
-  port: Number(process.env.PORT || 3000),
+  port: Number(process.env.PORT || 4000),
   dbPath: process.env.DB_PATH || new URL('../data/resource-service.db', import.meta.url),
   encryptionKey: buildKey(),
   tlsKeyPath: process.env.TLS_KEY_PATH || new URL('../certs/localhost-key.pem', import.meta.url),

@@ -45,6 +45,8 @@ export async function getStudentCourseResourceSnapshot(course, studentId) {
       mode: item.mode,
       prompt: item.prompt,
       response: item.response,
+      responseType: item.responseType || 'text',
+      responseContentType: item.responseContentType || 'text/plain; charset=utf-8',
       tokenConsumed: item.tokenConsumed || 0,
       subscriptionConsumed: item.subscriptionConsumed || 0,
       createdAt: item.createdAt,

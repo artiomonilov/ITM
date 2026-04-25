@@ -152,7 +152,13 @@ export class ResourceDatabase {
     `).get();
 
     if (!row) {
-      return null;
+      const generatedIp = this.generateNextVpsIp();
+      this.db.prepare(`
+        INSERT INTO vps_resources (ip_address, is_allocated, allocated_at)
+        VALUES (?, 1, CURRENT_TIMESTAMP)
+      `).run(generatedIp);
+
+      return generatedIp;
     }
 
     this.db.prepare(`
@@ -162,6 +168,19 @@ export class ResourceDatabase {
     `).run(row.id);
 
     return row.ip_address;
+  }
+
+  generateNextVpsIp() {
+    const row = this.db.prepare(`
+      SELECT COUNT(*) AS total
+      FROM vps_resources
+    `).get();
+
+    const nextIndex = Number(row?.total || 0) + 1;
+    const thirdOctet = Math.floor((nextIndex - 1) / 250);
+    const fourthOctet = ((nextIndex - 1) % 250) + 1;
+
+    return `10.10.${thirdOctet}.${fourthOctet}`;
   }
 
   getStoredUsersCount() {

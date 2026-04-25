@@ -1,4 +1,5 @@
 'use client';
+import Image from 'next/image';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 
@@ -29,6 +30,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
     () => activities.find((activity) => activity._id === selectedActivityId) || null,
     [activities, selectedActivityId]
   );
+  const isImageResponse = activityResponse.startsWith('data:image/');
 
   const applyWorkspacePayload = useCallback((data) => {
     setActivities(data.activities || []);
@@ -457,6 +459,7 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
                       <p className="mt-1">{selectedActivity.description}</p>
                       <p className="mt-2 text-xs text-gray-500">
                         Tip executie: {selectedActivity.executionType === 'VPS_PLACEHOLDER' ? 'VPS placeholder' : 'AI'}
+                        {selectedActivity.executionType === 'AI' ? ` | Resursa: ${selectedActivity.aiResourceType || 'text'}` : ''}
                       </p>
                     </div>
                     <div className="mb-3">
@@ -483,7 +486,20 @@ export default function CourseDetailClient({ courseId, course, currentUserId, cu
               <div className="rounded border border-gray-200 bg-gray-50 p-4">
                 <h3 className="mb-3 text-lg font-semibold">Raspuns</h3>
                 <div className="min-h-[220px] rounded border border-gray-200 bg-white p-4 text-sm whitespace-pre-wrap">
-                  {activityResponse || 'Aici va aparea raspunsul pentru activitatea selectata.'}
+                  {activityResponse ? (
+                    isImageResponse ? (
+                      <Image
+                        src={activityResponse}
+                        alt="Resursa AI generata"
+                        width={768}
+                        height={768}
+                        unoptimized
+                        className="max-h-[420px] w-auto rounded border border-gray-200"
+                      />
+                    ) : (
+                      activityResponse
+                    )
+                  ) : 'Aici va aparea raspunsul pentru activitatea selectata.'}
                 </div>
               </div>
             </div>

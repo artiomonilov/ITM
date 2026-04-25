@@ -12,6 +12,7 @@ const initialForm = {
   tokenCost: 0,
   subscriptionCost: 0,
   executionType: 'AI',
+  aiResourceType: 'text',
 };
 
 async function readJsonSafe(response) {
@@ -203,6 +204,21 @@ export default function AdminActivitiesPage() {
               <option value="VPS_PLACEHOLDER">VPS placeholder</option>
             </select>
 
+            {form.executionType === 'AI' && (
+              <>
+                <label className="mb-2 block text-sm font-semibold">Resursa AI ceruta</label>
+                <select
+                  className="mb-4 w-full rounded border border-gray-300 p-2"
+                  value={form.aiResourceType}
+                  onChange={(event) => onChange('aiResourceType', event.target.value)}
+                >
+                  <option value="text">Text</option>
+                  <option value="code">Code</option>
+                  <option value="image">Image</option>
+                </select>
+              </>
+            )}
+
             <button
               type="submit"
               disabled={saving}
@@ -238,6 +254,11 @@ export default function AdminActivitiesPage() {
                         <span className="rounded bg-slate-200 px-2 py-1 text-slate-800">
                           {activity.executionType === 'VPS_PLACEHOLDER' ? 'VPS placeholder' : 'AI'}
                         </span>
+                        {activity.executionType === 'AI' && (
+                          <span className="rounded bg-emerald-100 px-2 py-1 text-emerald-800">
+                            {activity.aiResourceType || 'text'}
+                          </span>
+                        )}
                       </div>
                     </div>
                     <p className="mb-2 text-sm text-gray-700">{activity.description}</p>

@@ -189,7 +189,7 @@ export function createApp(customConfig = config) {
 
       if (method === 'POST' && requestUrl.pathname === '/resource') {
         const parsedBody = typeof body === 'string' ? JSON.parse(body || '{}') : body || {};
-        const { serviceName, resourceType } = parsedBody;
+        const { serviceName, resourceType, prompt } = parsedBody;
 
         if (!validateServiceName(serviceName)) {
           return {
@@ -217,6 +217,16 @@ export function createApp(customConfig = config) {
         }
 
         if (serviceName === 'AI') {
+          if (typeof prompt !== 'string' || !prompt.trim()) {
+            return {
+              statusCode: 400,
+              headers: { 'Content-Type': 'application/json; charset=utf-8' },
+              body: Buffer.from(
+                JSON.stringify({ error: 'For AI, prompt is required and must be a non-empty string.' })
+              )
+            };
+          }
+
           if (!['text', 'code', 'image'].includes(resourceType)) {
             return {
               statusCode: 400,

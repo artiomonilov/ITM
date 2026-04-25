@@ -138,7 +138,7 @@ test('returns AI text resource and allocates VPS IPs', async () => {
     headers: {
       authorization: basicAuthHeader('ai-service', 'ai-pass-2026')
     },
-    body: JSON.stringify({ serviceName: 'AI', resourceType: 'text' })
+    body: JSON.stringify({ serviceName: 'AI', resourceType: 'text', prompt: 'Scrie un raspuns demonstrativ.' })
   });
   assert.equal(aiResponse.statusCode, 200);
   assert.equal(aiResponse.body.toString('utf8'), 'AI says hello');
@@ -149,7 +149,7 @@ test('returns AI text resource and allocates VPS IPs', async () => {
     headers: {
       authorization: basicAuthHeader('ai-service', 'ai-pass-2026')
     },
-    body: JSON.stringify({ serviceName: 'AI', resourceType: 'image' })
+    body: JSON.stringify({ serviceName: 'AI', resourceType: 'image', prompt: 'Genereaza o imagine demo.' })
   });
   assert.equal(imageResponse.statusCode, 200);
   assert.equal(imageResponse.headers['Content-Type'], 'image/png');
@@ -165,6 +165,85 @@ test('returns AI text resource and allocates VPS IPs', async () => {
   assert.equal(vpsResponse.statusCode, 200);
   const payload = JSON.parse(vpsResponse.body.toString('utf8'));
   assert.equal(payload.ipAddress, '10.0.0.21');
+
+  database.close();
+});
+
+test('requires prompt for AI resource requests', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'resource-service-'));
+  const dbPath = path.join(tmpDir, 'test.db');
+  const customConfig = {
+    host: '127.0.0.1',
+    port: 0,
+    dbPath,
+    encryptionKey: Buffer.alloc(32, 13),
+    vpsPool: ['10.0.0.21'],
+    aiResources: {
+      text: 'AI says hello',
+      code: 'return 42;',
+      image: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9sX8nKcAAAAASUVORK5CYII=', 'base64')
+    }
+  };
+
+  const { database, handleRequest } = createApp(customConfig);
+
+  const aiResponse = await handleRequest({
+    method: 'POST',
+    url: '/resource',
+    headers: {
+      authorization: basicAuthHeader('ai-service', 'ai-pass-2026')
+    },
+    body: JSON.stringify({ serviceName: 'AI', resourceType: 'text' })
+  });
+
+  assert.equal(aiResponse.statusCode, 400);
+  const payload = JSON.parse(aiResponse.body.toString('utf8'));
+  assert.equal(payload.error, 'For AI, prompt is required and must be a non-empty string.');
+
+  database.close();
+});
+
+test('allocates more VPS addresses than the initial pool size', async () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'resource-service-'));
+  const dbPath = path.join(tmpDir, 'test.db');
+  const customConfig = {
+    host: '127.0.0.1',
+    port: 0,
+    dbPath,
+    encryptionKey: Buffer.alloc(32, 15),
+    vpsPool: ['10.0.0.21'],
+    aiResources: {
+      text: 'AI says hello',
+      code: 'return 42;',
+      image: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9sX8nKcAAAAASUVORK5CYII=', 'base64')
+    }
+  };
+
+  const { database, handleRequest } = createApp(customConfig);
+
+  const first = await handleRequest({
+    method: 'POST',
+    url: '/resource',
+    headers: {
+      authorization: basicAuthHeader('vps-service', 'vps-pass-2026')
+    },
+    body: JSON.stringify({ serviceName: 'VPS', resourceType: 'ip' })
+  });
+  const second = await handleRequest({
+    method: 'POST',
+    url: '/resource',
+    headers: {
+      authorization: basicAuthHeader('vps-service', 'vps-pass-2026')
+    },
+    body: JSON.stringify({ serviceName: 'VPS', resourceType: 'ip' })
+  });
+
+  assert.equal(first.statusCode, 200);
+  assert.equal(second.statusCode, 200);
+  assert.notEqual(
+    JSON.parse(first.body.toString('utf8')).ipAddress,
+    JSON.parse(second.body.toString('utf8')).ipAddress,
+  );
 
   database.close();
 });

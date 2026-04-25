@@ -8,6 +8,7 @@ export const defaultActivities = [
     tokenCost: 10,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Generare imagine',
@@ -16,6 +17,7 @@ export const defaultActivities = [
     tokenCost: 50,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'image',
   },
   {
     title: 'Asistenta dezvoltare software',
@@ -24,6 +26,7 @@ export const defaultActivities = [
     tokenCost: 5000,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'code',
   },
   {
     title: 'Traducere continut',
@@ -32,6 +35,7 @@ export const defaultActivities = [
     tokenCost: 30,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Generare test grila',
@@ -40,6 +44,7 @@ export const defaultActivities = [
     tokenCost: 60,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Explicare concept',
@@ -48,6 +53,7 @@ export const defaultActivities = [
     tokenCost: 25,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Corectare cod',
@@ -56,6 +62,7 @@ export const defaultActivities = [
     tokenCost: 250,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'code',
   },
   {
     title: 'Analiza dataset',
@@ -64,6 +71,7 @@ export const defaultActivities = [
     tokenCost: 200,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Generare prezentare',
@@ -72,6 +80,7 @@ export const defaultActivities = [
     tokenCost: 80,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Plan de invatare',
@@ -80,6 +89,7 @@ export const defaultActivities = [
     tokenCost: 40,
     subscriptionCost: 0,
     executionType: 'AI',
+    aiResourceType: 'text',
   },
   {
     title: 'Acces laborator VPS',
@@ -88,11 +98,12 @@ export const defaultActivities = [
     tokenCost: 0,
     subscriptionCost: 1,
     executionType: 'VPS_PLACEHOLDER',
+    aiResourceType: 'text',
   },
 ];
 
 export async function ensureDefaultActivities() {
-  const existingActivities = await Activity.find().select('title tokenCost subscriptionCost executionType');
+  const existingActivities = await Activity.find().select('title tokenCost subscriptionCost executionType aiResourceType');
   const existingByTitle = new Map(existingActivities.map((item) => [item.title, item]));
 
   const missingActivities = defaultActivities.filter((activity) => !existingByTitle.has(activity.title));
@@ -115,6 +126,9 @@ export async function ensureDefaultActivities() {
     }
     if (!existing.executionType) {
       patch.executionType = activity.executionType;
+    }
+    if (!existing.aiResourceType || existing.aiResourceType !== activity.aiResourceType) {
+      patch.aiResourceType = activity.aiResourceType;
     }
 
     if (Object.keys(patch).length > 0) {

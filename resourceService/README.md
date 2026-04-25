@@ -8,7 +8,7 @@ Serviciu HTTPS simplu pentru simularea resurselor `AI` si `VPS`, construit fara 
 - seed-uieste automat in baza de date 2 utilizatori initiali pentru `AI` si `VPS`
 - expune `POST /users` pentru inregistrarea unui utilizator nou prin body JSON, salvat criptat in SQLite
 - expune `POST /resource` pentru:
-  - `AI` + `resourceType=text|code|image`
+  - `AI` + `resourceType=text|code|image` + `prompt`
   - `VPS` + returnarea unui IP disponibil din pool-ul local
 
 Resursele AI sunt citite din fisierele locale `resourceService/res/test.txt`, `resourceService/res/test.c` si `resourceService/res/test.png`.
@@ -64,7 +64,7 @@ AI text:
 curl -k -X POST https://localhost:3000/resource \
   -H "Authorization: Basic $(printf 'ai-service:ai-pass-2026' | base64)" \
   -H "Content-Type: application/json" \
-  -d '{"serviceName":"AI","resourceType":"text"}'
+  -d '{"serviceName":"AI","resourceType":"text","prompt":"Rezuma pe scurt conceptele de baza."}'
 ```
 
 AI code:
@@ -73,7 +73,7 @@ AI code:
 curl -k -X POST https://localhost:3000/resource \
   -H "Authorization: Basic $(printf 'ai-service:ai-pass-2026' | base64)" \
   -H "Content-Type: application/json" \
-  -d '{"serviceName":"AI","resourceType":"code"}'
+  -d '{"serviceName":"AI","resourceType":"code","prompt":"Genereaza un exemplu simplu in C."}'
 ```
 
 AI image:
@@ -82,11 +82,11 @@ AI image:
 curl -k -X POST https://localhost:3000/resource \
   -H "Authorization: Basic $(printf 'ai-service:ai-pass-2026' | base64)" \
   -H "Content-Type: application/json" \
-  -d '{"serviceName":"AI","resourceType":"image"}' \
+  -d '{"serviceName":"AI","resourceType":"image","prompt":"Genereaza o diagrama simplificata."}' \
   --output ai-resource.png
 ```
 
-Imaginea servita este citita din `resourceService/res/test.png`, iar `Content-Type` este stabilit dupa continutul real al fisierului.
+Pentru cererile AI, campul `prompt` este obligatoriu conceptual, chiar daca raspunsul demo este in continuare servit din fisierele locale. Imaginea servita este citita din `resourceService/res/test.png`, iar `Content-Type` este stabilit dupa continutul real al fisierului.
 
 VPS IP:
 

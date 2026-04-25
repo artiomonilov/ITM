@@ -12,13 +12,23 @@ const ActivitySchema = new mongoose.Schema({
     required: true,
     default: 'AI',
   },
+  aiResourceType: {
+    type: String,
+    enum: ['text', 'code', 'image'],
+    required: true,
+    default: 'text',
+  },
 }, { timestamps: true });
 
 const existingActivityModel = mongoose.models.Activity;
 
 if (
   existingActivityModel
-  && (!existingActivityModel.schema.path('subscriptionCost') || !existingActivityModel.schema.path('executionType'))
+  && (
+    !existingActivityModel.schema.path('subscriptionCost')
+    || !existingActivityModel.schema.path('executionType')
+    || !existingActivityModel.schema.path('aiResourceType')
+  )
 ) {
   delete mongoose.models.Activity;
 }

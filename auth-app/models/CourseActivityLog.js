@@ -12,8 +12,23 @@ const CourseActivityLogSchema = new mongoose.Schema({
   },
   prompt: { type: String, default: '' },
   response: { type: String, default: '' },
+  responseType: {
+    type: String,
+    enum: ['text', 'code', 'image'],
+    default: 'text',
+  },
+  responseContentType: { type: String, default: 'text/plain; charset=utf-8' },
   tokenConsumed: { type: Number, default: 0, min: 0 },
   subscriptionConsumed: { type: Number, default: 0, min: 0 },
 }, { timestamps: true });
+
+const existingCourseActivityLogModel = mongoose.models.CourseActivityLog;
+
+if (
+  existingCourseActivityLogModel
+  && (!existingCourseActivityLogModel.schema.path('responseType') || !existingCourseActivityLogModel.schema.path('responseContentType'))
+) {
+  delete mongoose.models.CourseActivityLog;
+}
 
 export default mongoose.models.CourseActivityLog || mongoose.model('CourseActivityLog', CourseActivityLogSchema);

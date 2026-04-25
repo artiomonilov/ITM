@@ -277,51 +277,55 @@ export async function PUT(req) {
         return NextResponse.json({ message: 'Nu exista suficiente abonamente disponibile pentru aprobare.' }, { status: 400 });
       }
 
-      const credentials = [];
-      let usedFallbackCredentials = false;
-      const resourceEntries = [];
-      const courseSlug = request.courseId.name.toLowerCase().replace(/\s+/g, '-');
+      let credentials = [];
+      let resourceEntries = [];
 
-      if (request.scope === 'COURSE_SETUP' && courseSetupPlan?.students.length && courseSetupPlan.subscriptionPerStudent > 0) {
-        for (const student of courseSetupPlan.students) {
-          for (let index = 0; index < courseSetupPlan.subscriptionPerStudent; index += 1) {
-            const credential = await createSubscriptionCredentialSet(
-              `${courseSlug}-${student._id.toString()}-${index + 1}`,
-            );
-            credentials.push(credential);
-            if (credential.provisionedBy === 'fallback') {
-              usedFallbackCredentials = true;
+      try {
+        const courseSlug = request.courseId.name.toLowerCase().replace(/\s+/g, '-');
+
+        if (request.scope === 'COURSE_SETUP' && courseSetupPlan?.students.length && courseSetupPlan.subscriptionPerStudent > 0) {
+          for (const student of courseSetupPlan.students) {
+            for (let index = 0; index < courseSetupPlan.subscriptionPerStudent; index += 1) {
+              const credential = await createSubscriptionCredentialSet(
+                `${courseSlug}-${student._id.toString()}-${index + 1}`,
+              );
+              credentials.push(credential);
+
+              resourceEntries.push({
+                studentId: student._id,
+                profId: request.professorId._id,
+                courseId: request.courseId._id,
+                type: 'SUBSCRIPTION',
+                quantity: 1,
+                allocationScope: 'COURSE',
+                credentials: credential,
+              });
             }
+          }
+        } else {
+          for (let index = 0; index < request.quantity; index += 1) {
+            const credential = await createSubscriptionCredentialSet(`${courseSlug}-${index + 1}`);
+            credentials.push(credential);
 
             resourceEntries.push({
-              studentId: student._id,
+              studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
               profId: request.professorId._id,
               courseId: request.courseId._id,
               type: 'SUBSCRIPTION',
               quantity: 1,
-              allocationScope: 'COURSE',
+              allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
               credentials: credential,
             });
           }
         }
-      } else {
-        for (let index = 0; index < request.quantity; index += 1) {
-          const credential = await createSubscriptionCredentialSet(`${courseSlug}-${index + 1}`);
-          credentials.push(credential);
-          if (credential.provisionedBy === 'fallback') {
-            usedFallbackCredentials = true;
-          }
-
-          resourceEntries.push({
-            studentId: request.scope === 'EXTRA_STUDENT' ? request.studentId || null : null,
-            profId: request.professorId._id,
-            courseId: request.courseId._id,
-            type: 'SUBSCRIPTION',
-            quantity: 1,
-            allocationScope: request.scope === 'EXTRA_STUDENT' ? 'EXTRA' : 'COURSE',
-            credentials: credential,
-          });
-        }
+      } catch (error) {
+        console.error('Eroare la alocarea VPS din resourceService:', error);
+        return NextResponse.json(
+          {
+            message: `Nu am putut genera abonamentele VPS din resourceService: ${error.message}`,
+          },
+          { status: 502 },
+        );
       }
 
       if (resourceEntries.length > 0) {
@@ -353,9 +357,7 @@ export async function PUT(req) {
       });
 
       return NextResponse.json({
-        message: usedFallbackCredentials
-          ? 'Cererea a fost aprobata. resourceService nu este configurat sau nu a raspuns, asa ca au fost generate credentiale locale temporare.'
-          : 'Cererea a fost aprobata.',
+        message: 'Cererea a fost aprobata.',
         data: await buildResponse(),
       });
     }
