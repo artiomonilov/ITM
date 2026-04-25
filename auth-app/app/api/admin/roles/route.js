@@ -7,30 +7,32 @@ import { authOptions } from '@/app/api/auth/[...nextauth]/route';
 export async function PUT(req) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'admin') {
-      return NextResponse.json({ error: "Restricționat: Doar administratorii pot gestiona rolurile." }, { status: 403 });
+    if (!session || session.user.role !== 'Admin') {
+      return NextResponse.json({ error: "Restricționat: Doar administratorii au acces." }, { status: 403 });
     }
 
-    const { targetUserEmail, action, newRole } = await req.json();
+    const { targetUserEmail, action, newRole, toggleStatus } = await req.json();
     await connectDB();
 
     const user = await User.findOne({ email: targetUserEmail });
     if (!user) return NextResponse.json({ message: "User inexistent" }, { status: 404 });
 
-    // 1. Atribuire (2p) / 2. Modificare (2p)
-    if (action === 'assign' || action === 'modify') {
-      if (!newRole) return NextResponse.json({ message: "Rol invalid" }, { status: 400 });
+    // Modificare/Atribuire Rol
+    if (action === 'modifyRole') {
+      if (!['Student', 'Profesor', 'Admin', 'Audit'].includes(newRole)) {
+        return NextResponse.json({ message: "Rol invalid. Alegeri permise: Student, Profesor, Admin, Audit" }, { status: 400 });
+      }
       user.role = newRole; 
     } 
-    // 3. Revocare (2p) - îl aducem la rolul de bază
-    else if (action === 'revoke') {
-      user.role = 'user'; 
+    // Modificare Stare Activ/Inactiv
+    else if (action === 'toggleStatus') {
+      user.isActive = toggleStatus;
     } else {
       return NextResponse.json({ message: "Acțiune invalidă" }, { status: 400 });
     }
 
     await user.save();
-    return NextResponse.json({ message: "Rol actualizat cu succes!" }, { status: 200 });
+    return NextResponse.json({ message: `Acțiune reușită pentru ${user.email}!` }, { status: 200 });
   } catch (error) {
     return NextResponse.json({ message: "A apărut o eroare." }, { status: 500 });
   }
@@ -38,10 +40,10 @@ export async function PUT(req) {
 
 export async function GET(req) {
     const session = await getServerSession(authOptions);
-    if (!session || session.user.role !== 'admin') {
+    if (!session || session.user.role !== 'Admin') {
       return NextResponse.json({ error: "Restricționat" }, { status: 403 });
     }
     await connectDB();
-    const users = await User.find({}, 'email role _id');
+    const users = await User.find({}, 'email nume prenume role isActive _id');
     return NextResponse.json(users, { status: 200 });
 }
