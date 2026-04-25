@@ -44,7 +44,7 @@ async function requireAdmin() {
 export async function GET() {
   const session = await requireAdmin();
   if (!session) {
-    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
+    return NextResponse.json({ message: 'Restrictionat: doar administratorii au acces.' }, { status: 403 });
   }
 
   await connectDB();
@@ -57,12 +57,12 @@ export async function GET() {
 export async function POST(req) {
   const session = await requireAdmin();
   if (!session) {
-    return NextResponse.json({ message: 'Restricționat: doar administratorii au acces.' }, { status: 403 });
+    return NextResponse.json({ message: 'Restrictionat: doar administratorii au acces.' }, { status: 403 });
   }
 
-  const { title, description, taskPrompt, tokenCost } = await req.json();
+  const { title, description, taskPrompt, tokenCost, subscriptionCost, executionType } = await req.json();
   if (!title || !description || !taskPrompt) {
-    return NextResponse.json({ message: 'Titlul, descrierea și sarcina sunt obligatorii.' }, { status: 400 });
+    return NextResponse.json({ message: 'Titlul, descrierea si sarcina sunt obligatorii.' }, { status: 400 });
   }
 
   await connectDB();
@@ -71,6 +71,8 @@ export async function POST(req) {
     description,
     taskPrompt,
     tokenCost: Number(tokenCost) || 0,
+    subscriptionCost: Number(subscriptionCost) || 0,
+    executionType: executionType === 'VPS_PLACEHOLDER' ? 'VPS_PLACEHOLDER' : 'AI',
   });
 
   await logAuditEvent({
