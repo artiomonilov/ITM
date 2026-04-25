@@ -5,6 +5,7 @@ import { connectDB } from '@/lib/mongodb';
 import Course from '@/models/Course';
 import StudentResourceRequest from '@/models/StudentResourceRequest';
 import ResourceRequest from '@/models/ResourceRequest';
+import { ensureObjectId, normalizeOptionalText } from '@/lib/inputSecurity';
 
 async function getCourseContext(courseId, user) {
   const course = await Course.findById(courseId)
@@ -56,6 +57,7 @@ export async function POST(req, { params }) {
 
   await connectDB();
   const { courseId } = await params;
+  ensureObjectId(courseId, 'ID curs');
   const context = await getCourseContext(courseId, session.user);
   if (context.error) {
     return context.error;
@@ -76,7 +78,7 @@ export async function POST(req, { params }) {
     studentId: session.user.id,
     type,
     quantity: Math.max(1, Number(quantity) || 0),
-    reason: reason || '',
+    reason: normalizeOptionalText(reason, 'Motiv', 500),
   });
 
   const ownRequests = await StudentResourceRequest.find({
@@ -99,6 +101,7 @@ export async function PATCH(req, { params }) {
 
   await connectDB();
   const { courseId } = await params;
+  ensureObjectId(courseId, 'ID curs');
   const context = await getCourseContext(courseId, session.user);
   if (context.error) {
     return context.error;
@@ -109,7 +112,8 @@ export async function PATCH(req, { params }) {
   }
 
   const { requestId, decision } = await req.json();
-  const request = await StudentResourceRequest.findById(requestId).populate('studentId', 'nume prenume email');
+  const safeRequestId = ensureObjectId(requestId, 'ID cerere');
+  const request = await StudentResourceRequest.findById(safeRequestId).populate('studentId', 'nume prenume email');
   if (!request) {
     return NextResponse.json({ message: 'Cererea studentului nu a fost gasita.' }, { status: 404 });
   }

@@ -27,12 +27,6 @@ export default async function DashboardPage() {
     };
 
     let filter = studentDestinationFilter;
-    if (session.user.role === 'Student') {
-      filter = {
-        ...studentDestinationFilter,
-        students: session.user.id,
-      };
-    }
 
     const coursesList = await Course.find(filter)
       .populate('teacher', 'nume prenume')
@@ -47,6 +41,7 @@ export default async function DashboardPage() {
       teacher: course.teacher ? { nume: course.teacher.nume, prenume: course.teacher.prenume } : null,
       studentsCount: course.students ? course.students.length : 0,
       studentsList: course.students ? course.students.map((student) => student._id.toString()) : [],
+      maxStudents: course.maxStudents || 0,
       createdAt: course.createdAt ? course.createdAt.toISOString() : null,
     }));
   } catch (error) {
@@ -96,6 +91,12 @@ export default async function DashboardPage() {
           <div className="mb-4 rounded bg-gray-200 p-4 text-black">
             <h2 className="text-xl font-bold">Informatie</h2>
             <p>Zona ta de activitate nu detine actiuni speciale.</p>
+          </div>
+        )}
+
+        {session.user.role === 'Student' && (
+          <div className="mb-4 rounded border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">
+            Vezi toate cursurile disponibile pentru studenti, apoi foloseste filtrul din lista pentru a afisa doar cursurile la care esti deja inrolat.
           </div>
         )}
 

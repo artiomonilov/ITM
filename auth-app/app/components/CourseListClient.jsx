@@ -5,13 +5,20 @@ import { useRouter } from 'next/navigation';
 
 export default function CourseListClient({ courses: initialCourses, currentUserRole, currentUserId }) {
   const [showOnlyMine, setShowOnlyMine] = useState(false);
-  const [courses, setCourses] = useState(initialCourses);
+  const [courseOverrides, setCourseOverrides] = useState({});
   const [loadingId, setLoadingId] = useState(null);
   const router = useRouter();
 
+  const courses = initialCourses.map((course) => ({
+    ...course,
+    ...(courseOverrides[course._id] || {}),
+  }));
+
   const handleEnroll = async (courseId) => {
-    if (!confirm('Ești sigur că vrei să te înrolezi la acest curs?')) return;
-    
+    if (!confirm('Esti sigur ca vrei sa te inrolezi la acest curs?')) {
+      return;
+    }
+
     setLoadingId(courseId);
     try {
       const res = await fetch('/api/courses/enroll', {
@@ -21,94 +28,130 @@ export default function CourseListClient({ courses: initialCourses, currentUserR
       });
 
       const data = await res.json();
-      
+
       if (res.ok) {
-        // Actualizăm starea locală pentru un feedback vizual instant
-        setCourses(courses.map(c => {
-          if (c._id === courseId) {
-            return {
-              ...c,
-              studentsCount: c.studentsCount + 1,
-              studentsList: [...c.studentsList, currentUserId]
-            };
-          }
-          return c;
-        }));
-        router.refresh(); // Sincronizăm și pagina pe server
+        const updatedCourse = courses.find((course) => course._id === courseId);
+        if (updatedCourse) {
+          setCourseOverrides((currentOverrides) => ({
+            ...currentOverrides,
+            [courseId]: {
+              studentsCount: updatedCourse.studentsCount + 1,
+              studentsList: [...updatedCourse.studentsList, currentUserId],
+            },
+          }));
+        }
+        router.refresh();
       } else {
         alert(`Eroare: ${data.message}`);
       }
     } catch (error) {
-      alert("A apărut o problemă la conexiune.");
+      alert('A aparut o problema la conexiune.');
     } finally {
       setLoadingId(null);
     }
   };
 
-  const filteredCourses = showOnlyMine 
-    ? courses.filter(c => c.studentsList.includes(currentUserId))
+  const filteredCourses = showOnlyMine
+    ? courses.filter((course) => course.studentsList.includes(currentUserId))
     : courses;
 
   return (
-    <div className="bg-gray-50 border border-gray-300 p-6 rounded mb-8 mt-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4 border-b pb-2 gap-4">
-        <h2 className="text-2xl font-bold text-gray-800">📋 Lista de Cursuri</h2>
-        
+    <div className="mb-8 mt-6 rounded border border-gray-300 bg-gray-50 p-6">
+      <div className="mb-4 flex flex-col items-start justify-between gap-4 border-b pb-2 sm:flex-row sm:items-center">
+        <div>
+          <h2 className="text-2xl font-bold text-gray-800">Lista de Cursuri</h2>
+          {currentUserRole === 'Student' && (
+            <p className="mt-1 text-sm text-gray-500">
+              Poti vedea toate cursurile pentru studenti si poti filtra rapid doar cursurile la care esti deja inrolat.
+            </p>
+          )}
+        </div>
+
         {currentUserRole === 'Student' && (
-          <label className="flex items-center cursor-pointer bg-white border px-3 py-2 rounded shadow-sm text-sm font-bold text-blue-800">
-            <input 
-              type="checkbox" 
-              checked={showOnlyMine} 
-              onChange={(e) => setShowOnlyMine(e.target.checked)}
-              className="mr-2 w-4 h-4 accent-blue-600"
+          <label className="flex cursor-pointer items-center rounded border bg-white px-3 py-2 text-sm font-bold text-blue-800 shadow-sm">
+            <input
+              type="checkbox"
+              checked={showOnlyMine}
+              onChange={(event) => setShowOnlyMine(event.target.checked)}
+              className="mr-2 h-4 w-4 accent-blue-600"
             />
-            Vezi doar cursurile mele
+            Afiseaza doar cursurile mele
           </label>
         )}
       </div>
 
       {filteredCourses.length === 0 ? (
-        <p className="text-gray-500 italic">Momentan nu a fost găsit niciun curs conform filtrelor.</p>
+        <p className="italic text-gray-500">Momentan nu a fost gasit niciun curs conform filtrelor.</p>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {filteredCourses.map(c => {
-             const isEnrolled = c.studentsList.includes(currentUserId);
-             return (
-               <div key={c._id} className="bg-white border rounded shadow p-4 text-sm relative flex flex-col">
-                  <div className="flex-1">
-                    <h3 className="text-lg font-bold text-blue-600 truncate">{c.name}</h3>
-                    <p className="text-gray-600 my-2 line-clamp-2 h-10">{c.description}</p>
-                  </div>
-                  
-                  <div className="mt-4 pt-4 border-t flex flex-col sm:flex-row justify-between items-start sm:items-center text-xs text-gray-500 font-medium gap-3">
-                    <span>👤 Prof: {c.teacher ? c.teacher.nume + ' ' + c.teacher.prenume : 'N/A'}</span>
-                    <span className="bg-blue-100 text-blue-800 px-2 py-1 rounded-full">🎓 Studenți: {c.studentsCount}</span>
-                  </div>
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {filteredCourses.map((course) => {
+            const isEnrolled = course.studentsList.includes(currentUserId);
+            const isStudentCourse = (course.destination || 'STUDENT') === 'STUDENT';
+            const hasSeatsAvailable = !course.maxStudents || course.studentsCount < course.maxStudents;
+            const canEnroll = currentUserRole === 'Student' && isStudentCourse && !isEnrolled && hasSeatsAvailable;
+            const canOpenDetails = currentUserRole !== 'Student' || isEnrolled;
 
-                  <div className="mt-4 flex flex-col gap-3">
-                    <Link href={`/courses/${c._id}`} className="text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 text-center py-2 rounded">
-                      📘 Detalii curs
-                    </Link>
-                    {currentUserRole === 'Student' && (
-                      <div>
-                        {isEnrolled ? (
-                          <div className="text-xs text-center font-bold text-green-700 bg-green-50 py-2 rounded border border-green-200">
-                            ✅ Ești înscris la acest curs
-                          </div>
-                        ) : (
-                          <button 
-                            onClick={() => handleEnroll(c._id)}
-                            disabled={loadingId === c._id}
-                            className="w-full text-xs text-center font-bold text-white bg-blue-600 hover:bg-blue-700 py-2 rounded transition-colors disabled:opacity-50"
-                          >
-                            {loadingId === c._id ? '⏳ Se procesează...' : '➕ Înrolează-te acum'}
-                          </button>
-                        )}
-                      </div>
+            return (
+              <div key={course._id} className="relative flex flex-col rounded border bg-white p-4 text-sm shadow">
+                <div className="flex-1">
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    <h3 className="truncate text-lg font-bold text-blue-600">{course.name}</h3>
+                    {currentUserRole === 'Student' && isEnrolled && (
+                      <span className="rounded-full border border-green-200 bg-green-50 px-2 py-1 text-[11px] font-bold text-green-700">
+                        Inscris
+                      </span>
                     )}
                   </div>
-               </div>
-             );
+                  <p className="my-2 line-clamp-2 h-10 text-gray-600">{course.description}</p>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-2 border-t pt-4 text-xs font-medium text-gray-500 sm:flex-row sm:items-center sm:justify-between">
+                  <span>Prof: {course.teacher ? `${course.teacher.nume} ${course.teacher.prenume}` : 'N/A'}</span>
+                  <span className="rounded-full bg-blue-100 px-2 py-1 text-blue-800">
+                    Studenti: {course.studentsCount}{course.maxStudents ? ` / ${course.maxStudents}` : ''}
+                  </span>
+                </div>
+
+                <div className="mt-4 flex flex-col gap-3">
+                  {canOpenDetails ? (
+                    <Link
+                      href={`/courses/${course._id}`}
+                      className="rounded bg-blue-600 py-2 text-center text-sm font-bold text-white hover:bg-blue-700"
+                    >
+                      Detalii curs
+                    </Link>
+                  ) : (
+                    <div className="rounded border border-gray-200 bg-gray-50 py-2 text-center text-xs font-semibold text-gray-500">
+                      Inscrie-te pentru a accesa detaliile cursului.
+                    </div>
+                  )}
+
+                  {currentUserRole === 'Student' && (
+                    <div>
+                      {isEnrolled ? (
+                        <div className="rounded border border-green-200 bg-green-50 py-2 text-center text-xs font-bold text-green-700">
+                          Esti inscris la acest curs.
+                        </div>
+                      ) : canEnroll ? (
+                        <button
+                          onClick={() => handleEnroll(course._id)}
+                          disabled={loadingId === course._id}
+                          className="w-full rounded bg-blue-600 py-2 text-center text-xs font-bold text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
+                        >
+                          {loadingId === course._id ? 'Se proceseaza...' : 'Inroleaza-te acum'}
+                        </button>
+                      ) : (
+                        <div className="rounded border border-amber-200 bg-amber-50 py-2 text-center text-xs font-semibold text-amber-800">
+                          {isStudentCourse
+                            ? 'Inscriere indisponibila: cursul a atins numarul maxim de studenti.'
+                            : 'Acest curs nu este disponibil pentru inscrierea studentilor.'}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
           })}
         </div>
       )}

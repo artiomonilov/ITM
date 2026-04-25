@@ -17,8 +17,10 @@ function ActivityTable({ activities, emptyText }) {
           <tr className="border-b border-gray-200 text-left">
             <th className="py-2 pr-4">Activitate</th>
             <th className="py-2 pr-4">Cost token</th>
+            <th className="py-2 pr-4">Cost abonamente</th>
             <th className="py-2 pr-4">Numar utilizari</th>
-            <th className="py-2">Total tokenuri folosite</th>
+            <th className="py-2 pr-4">Total tokenuri folosite</th>
+            <th className="py-2">Total abonamente folosite</th>
           </tr>
         </thead>
         <tbody>
@@ -26,8 +28,10 @@ function ActivityTable({ activities, emptyText }) {
             <tr key={`${activity.activityId || activity.activityTitle}`} className="border-b border-gray-100">
               <td className="py-2 pr-4">{activity.activityTitle}</td>
               <td className="py-2 pr-4">{activity.tokenCost}</td>
+              <td className="py-2 pr-4">{activity.subscriptionCost}</td>
               <td className="py-2 pr-4">{activity.usagesCount}</td>
-              <td className="py-2 font-semibold">{activity.totalTokensUsed}</td>
+              <td className="py-2 pr-4 font-semibold">{activity.totalTokensUsed}</td>
+              <td className="py-2 font-semibold">{activity.totalSubscriptionsUsed}</td>
             </tr>
           ))}
         </tbody>
@@ -112,10 +116,14 @@ export default function AdminStatisticsPage() {
                 </span>
               </div>
 
-              <div className="mb-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+              <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                 <div className="rounded border border-gray-200 bg-white p-4">
-                  <p className="text-sm text-gray-500">Tokenuri disponibile</p>
-                  <p className="text-2xl font-bold">{data.universityStats.totalTokensAvailable}</p>
+                  <p className="text-sm text-gray-500">Inventar total tokenuri</p>
+                  <p className="text-2xl font-bold">{data.universityStats.totalTokensInventory}</p>
+                </div>
+                <div className="rounded border border-gray-200 bg-white p-4">
+                  <p className="text-sm text-gray-500">Tokenuri nealocate</p>
+                  <p className="text-2xl font-bold">{data.universityStats.availableTokens}</p>
                 </div>
                 <div className="rounded border border-gray-200 bg-white p-4">
                   <p className="text-sm text-gray-500">Tokenuri alocate</p>
@@ -126,8 +134,16 @@ export default function AdminStatisticsPage() {
                   <p className="text-2xl font-bold">{data.universityStats.totalTokensUsed}</p>
                 </div>
                 <div className="rounded border border-gray-200 bg-white p-4">
-                  <p className="text-sm text-gray-500">Abonamente disponibile</p>
-                  <p className="text-2xl font-bold">{data.universityStats.totalSubscriptionsAvailable}</p>
+                  <p className="text-sm text-gray-500">Tokenuri ramase in alocari</p>
+                  <p className="text-2xl font-bold">{data.universityStats.remainingAllocatedTokens}</p>
+                </div>
+                <div className="rounded border border-gray-200 bg-white p-4">
+                  <p className="text-sm text-gray-500">Inventar total abonamente</p>
+                  <p className="text-2xl font-bold">{data.universityStats.totalSubscriptionsInventory}</p>
+                </div>
+                <div className="rounded border border-gray-200 bg-white p-4">
+                  <p className="text-sm text-gray-500">Abonamente nealocate</p>
+                  <p className="text-2xl font-bold">{data.universityStats.availableSubscriptions}</p>
                 </div>
                 <div className="rounded border border-gray-200 bg-white p-4">
                   <p className="text-sm text-gray-500">Abonamente alocate</p>
@@ -136,6 +152,10 @@ export default function AdminStatisticsPage() {
                 <div className="rounded border border-gray-200 bg-white p-4">
                   <p className="text-sm text-gray-500">Abonamente utilizate</p>
                   <p className="text-2xl font-bold">{data.universityStats.totalSubscriptionsUsed}</p>
+                </div>
+                <div className="rounded border border-gray-200 bg-white p-4">
+                  <p className="text-sm text-gray-500">Abonamente ramase in alocari</p>
+                  <p className="text-2xl font-bold">{data.universityStats.remainingAllocatedSubscriptions}</p>
                 </div>
               </div>
 
@@ -163,7 +183,7 @@ export default function AdminStatisticsPage() {
 
               {selectedCourse ? (
                 <>
-                  <div className="mb-6 grid gap-4 md:grid-cols-3 xl:grid-cols-6">
+                  <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
                     <div className="rounded border border-gray-200 bg-white p-4">
                       <p className="text-sm text-gray-500">Profesor</p>
                       <p className="text-base font-bold">{selectedCourse.teacherName}</p>
@@ -181,12 +201,20 @@ export default function AdminStatisticsPage() {
                       <p className="text-2xl font-bold">{selectedCourse.totalTokensUsed}</p>
                     </div>
                     <div className="rounded border border-gray-200 bg-white p-4">
+                      <p className="text-sm text-gray-500">Tokenuri ramase</p>
+                      <p className="text-2xl font-bold">{selectedCourse.remainingTokens}</p>
+                    </div>
+                    <div className="rounded border border-gray-200 bg-white p-4">
                       <p className="text-sm text-gray-500">Abonamente alocate</p>
                       <p className="text-2xl font-bold">{selectedCourse.allocatedSubscriptions}</p>
                     </div>
                     <div className="rounded border border-gray-200 bg-white p-4">
                       <p className="text-sm text-gray-500">Abonamente utilizate</p>
                       <p className="text-2xl font-bold">{selectedCourse.totalSubscriptionsUsed}</p>
+                    </div>
+                    <div className="rounded border border-gray-200 bg-white p-4">
+                      <p className="text-sm text-gray-500">Abonamente ramase</p>
+                      <p className="text-2xl font-bold">{selectedCourse.remainingSubscriptions}</p>
                     </div>
                   </div>
 
@@ -218,7 +246,7 @@ export default function AdminStatisticsPage() {
 
               {selectedStudent ? (
                 <>
-                  <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+                  <div className="mb-6 grid gap-4 md:grid-cols-2 xl:grid-cols-7">
                     <div className="rounded border border-gray-200 bg-white p-4 xl:col-span-2">
                       <p className="text-sm text-gray-500">Student</p>
                       <p className="text-base font-bold">{selectedStudent.studentName}</p>
@@ -233,12 +261,20 @@ export default function AdminStatisticsPage() {
                       <p className="text-2xl font-bold">{selectedStudent.totalTokensUsed}</p>
                     </div>
                     <div className="rounded border border-gray-200 bg-white p-4">
+                      <p className="text-sm text-gray-500">Tokenuri ramase</p>
+                      <p className="text-2xl font-bold">{selectedStudent.remainingTokens}</p>
+                    </div>
+                    <div className="rounded border border-gray-200 bg-white p-4">
                       <p className="text-sm text-gray-500">Abonamente alocate</p>
                       <p className="text-2xl font-bold">{selectedStudent.allocatedSubscriptions}</p>
                     </div>
                     <div className="rounded border border-gray-200 bg-white p-4">
                       <p className="text-sm text-gray-500">Abonamente utilizate</p>
                       <p className="text-2xl font-bold">{selectedStudent.totalSubscriptionsUsed}</p>
+                    </div>
+                    <div className="rounded border border-gray-200 bg-white p-4">
+                      <p className="text-sm text-gray-500">Abonamente ramase</p>
+                      <p className="text-2xl font-bold">{selectedStudent.remainingSubscriptions}</p>
                     </div>
                   </div>
 

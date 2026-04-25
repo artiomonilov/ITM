@@ -4,6 +4,9 @@ import bcrypt from "bcryptjs";
 import { connectDB } from "@/lib/mongodb";
 import User from "@/models/User";
 import { logAuditEvent } from "@/lib/audit";
+import { ensurePasswordCandidate, normalizeEmail } from "@/lib/inputSecurity";
+
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync("invalid-password-placeholder", 10);
 
 export const authOptions = {
   providers: [
@@ -14,24 +17,41 @@ export const authOptions = {
         password: { label: "Password", type: "password" }
       },
       async authorize(credentials) {
-        if (!credentials?.email || !credentials?.password) return null;
+        let safeEmail = "";
+        let safePassword = "";
 
-        await connectDB();
-        const user = await User.findOne({ email: credentials.email });
-
-        if (!user) {
+        try {
+          safeEmail = normalizeEmail(credentials?.email);
+          safePassword = ensurePasswordCandidate(credentials?.password);
+        } catch (error) {
           await logAuditEvent({
-            actorEmail: credentials.email,
+            actorEmail: safeEmail || "invalid-email",
             action: 'LOGIN_ATTEMPT',
             targetType: 'User',
-            targetLabel: credentials.email,
+            targetLabel: safeEmail || "invalid-email",
+            details: `Autentificare blocata: input invalid. ${error.message}`,
+            status: 'FAILURE',
+          });
+          throw new Error("Email sau parola gresita.");
+        }
+
+        await connectDB();
+        const user = await User.findOne({ email: safeEmail }).select('+password');
+
+        if (!user) {
+          await bcrypt.compare(safePassword, DUMMY_PASSWORD_HASH);
+          await logAuditEvent({
+            actorEmail: safeEmail,
+            action: 'LOGIN_ATTEMPT',
+            targetType: 'User',
+            targetLabel: safeEmail,
             details: 'Autentificare esuata: utilizator inexistent.',
             status: 'FAILURE',
           });
-          throw new Error("Email sau parolă greșită.");
+          throw new Error("Email sau parola gresita.");
         }
 
-        const isMatch = await bcrypt.compare(credentials.password, user.password);
+        const isMatch = await bcrypt.compare(safePassword, user.password);
         if (!isMatch) {
           await logAuditEvent({
             actorId: user._id,
@@ -44,7 +64,7 @@ export const authOptions = {
             details: 'Autentificare esuata: parola incorecta.',
             status: 'FAILURE',
           });
-          throw new Error("Email sau parolă greșită.");
+          throw new Error("Email sau parola gresita.");
         }
 
         if (!user.isActive) {
@@ -63,10 +83,10 @@ export const authOptions = {
             status: 'FAILURE',
           });
           if (isSuspendedAccount) {
-            throw new Error("Eroarea la conectare");
+            throw new Error("Eroare la conectare");
           }
 
-          throw new Error("Contul tău nu este activat. Verifică e-mail-ul pentru activare.");
+          throw new Error("Contul tau nu este activat. Verifica e-mail-ul pentru activare.");
         }
 
         await logAuditEvent({
@@ -127,7 +147,7 @@ export const authOptions = {
     }
   },
   session: { strategy: "jwt" },
-  secret: process.env.NEXTAUTH_SECRET || "supersecret12345", // Ideally generate this in .env
+  secret: process.env.NEXTAUTH_SECRET || "supersecret12345",
 };
 
 const handler = NextAuth(authOptions);

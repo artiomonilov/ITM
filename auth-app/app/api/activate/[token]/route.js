@@ -1,44 +1,42 @@
 import { NextResponse } from 'next/server';
 import { connectDB } from '@/lib/mongodb';
 import User from '@/models/User';
+import { ensureTokenString } from '@/lib/inputSecurity';
 
 export async function GET(req, { params }) {
   try {
     const { token } = await params;
+    const safeToken = ensureTokenString(token);
+
     await connectDB();
 
-    console.log("Token cautat:", token);
-    
     const user = await User.findOne({
-      activationToken: token
+      activationToken: safeToken,
     });
 
-    console.log("User gasit dupa token brut:", user);
-
     if (!user) {
-      return NextResponse.json({ message: "Token-ul furnizat este invalid." }, { status: 400 });
+      return NextResponse.json({ message: 'Token-ul furnizat este invalid.' }, { status: 400 });
     }
 
     if (user.activationTokenExpiry < Date.now()) {
-      return NextResponse.json({ message: "Token-ul a expirat." }, { status: 400 });
+      return NextResponse.json({ message: 'Token-ul a expirat.' }, { status: 400 });
     }
 
     if (user.isActive) {
-       return NextResponse.json({ message: "Contul tău este deja activat." }, { status: 400 });
+      return NextResponse.json({ message: 'Contul tau este deja activat.' }, { status: 400 });
     }
 
-    // Setam statusul pe True si stergem token-ul folosit
     await User.updateOne(
       { _id: user._id },
-      { 
+      {
         $set: { isActive: true },
-        $unset: { activationToken: "", activationTokenExpiry: "" }
+        $unset: { activationToken: '', activationTokenExpiry: '' },
       }
     );
 
-    return NextResponse.json({ message: "Cont activat cu succes." }, { status: 200 });
+    return NextResponse.json({ message: 'Cont activat cu succes.' }, { status: 200 });
   } catch (error) {
     console.error('Activation Error:', error);
-    return NextResponse.json({ message: "A apărut o eroare la server." }, { status: 500 });
+    return NextResponse.json({ message: error?.message || 'A aparut o eroare la server.' }, { status: error?.message ? 400 : 500 });
   }
 }
